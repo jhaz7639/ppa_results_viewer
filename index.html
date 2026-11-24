@@ -1,8 +1,10 @@
 <!--
   File: index.html
-  Version: v1.1.1
-  Last Updated: Iteration 3
+  Version: v1.3.0
+  Last Updated: Iteration 5
   CHANGELOG
+    [v1.3.0] - Added: note under the 3D view (#viewer-note) from config "display_note" (shared default saying streamlines are downsampled for web viewing and for visualisation only; per-tab override; "" hides it).
+    [v1.2.0] - Added: richText() so config text (subtitle, tab and tract descriptions, citation, terms) can use <em>/<i>, <strong>/<b>, <sub>, <sup>, <br>, <p>, <ul>/<ol>/<li>, and a list of strings shows as paragraphs; other tags are stripped. Modified: #tab-desc, #ts-desc, #gate-intro now <div class="rich">; .rich CSS added.
     [v1.1.1] - Added: <meta name="robots" content="noindex, nofollow"> in <head> so search engines don't list the viewer during peer review (delete after acceptance).
     [v1.1.0] - Added: shared top-level "values" in config.json (names translated in every tab's tract tables); Modified: "values" matching now ignores case, spaces, hyphens and underscores (loadTractCsv).
     [v1.0.0] - Initial implementation (baseline saved to the WM_viewer_dashboard project). The viewer: config-driven tabs (tabs list with placeholders), terms-of-use gate, whole-brain FBA streamlines (1-p / p / -log10p / mask), per-tab templates (tracks, glass_brain, bundle_dir), TractSeg reference outlines, tract forest plots (results, descriptive, group x measure), p and r filters with direction buttons, CSV column/value mapping and per-file groups.
@@ -103,6 +105,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 .thr{display:flex;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid var(--viewer-line);font-size:12.5px;flex-wrap:wrap}
 .thr input[type=range]{flex:1;min-width:140px;accent-color:#3cc4cf}
 .thr output{font-family:var(--font-mono);min-width:12ch}
+.viewer-note{margin:0;padding:8px 12px 10px;border-top:1px solid var(--viewer-line);font-size:12px;line-height:1.45;color:var(--viewer-muted)}
 .thr .frac{font-family:var(--font-mono);color:var(--viewer-muted)}
 
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-width:0}
@@ -202,6 +205,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 .tab:hover{color:var(--fg)}
 .tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
 .tab-desc{color:var(--muted);max-width:90ch;margin:0}
+.rich p{margin:0 0 .55em}.rich p:last-child{margin-bottom:0}
+.rich ul,.rich ol{margin:.3em 0 .55em;padding-left:1.3em}.rich li{margin:.15em 0}
+.rich em,.rich i{font-style:italic}.rich strong,.rich b{font-weight:600;color:var(--fg)}
 .banner ul{margin:4px 0 0;padding-left:18px}
 .panel-empty{padding:28px 16px;color:var(--muted);font-size:13.5px}
 .ns-note{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:80%;text-align:center;pointer-events:none;
@@ -231,13 +237,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
     <div>
       <div class="eyebrow">Fixel-based analysis · interactive companion</div>
       <h1 id="title">FDC Results Explorer</h1>
-      <div class="sub" id="subtitle"></div>
+      <div class="sub rich" id="subtitle"></div>
     </div>
     <div class="banner" id="banner" hidden></div>
   </header>
 
   <div class="tabs" role="tablist" id="tabs" aria-label="Analyses" hidden></div>
-  <p class="tab-desc" id="tab-desc" hidden></p>
+  <div class="tab-desc rich" id="tab-desc" hidden></div>
 
   <div class="facets" id="facets" hidden></div>
   <div class="groups" id="groups">
@@ -287,12 +293,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
         <span class="bundle-note" id="bundle-note" hidden></span>
         <span class="frac" id="sig-frac"></span>
       </div>
+      <div class="viewer-note rich" id="viewer-note" hidden></div>
     </section>
 
     <section class="panel" aria-label="Tract-level results">
       <div class="ph">
         <h2 id="ts-title">Tract-level results</h2>
-        <p id="ts-desc"></p>
+        <div class="rich" id="ts-desc"></div>
         <div class="tools" id="ts-tools">
           <label for="sort">Order</label>
           <select id="sort"><option value="anat">Anatomical</option><option value="d">Effect size</option></select>
@@ -346,7 +353,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
     <div class="cbox">
       <h3>How to cite</h3>
       <p>If you use or refer to these results, cite the paper:</p>
-      <div class="ref" id="ref-text"></div>
+      <div class="ref rich" id="ref-text"></div>
       <div class="btns"><button class="btn" id="copy-ref">Copy citation</button><a id="doi-link" href="#" target="_blank" rel="noopener" hidden>Open the paper</a><span class="toast" id="copy-toast" aria-live="polite"></span></div>
     </div>
     <div class="cbox">
@@ -363,7 +370,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
   <div class="gate-card">
     <div class="eyebrow">Before you view the results</div>
     <h2 id="gate-title">Terms of use</h2>
-    <p id="gate-intro"></p>
+    <div class="rich" id="gate-intro"></div>
     <ol id="gate-terms"></ol>
     <p id="gate-contact"></p>
     <label class="gate-check"><input type="checkbox" id="gate-ok"> I have read and agree to these terms of use</label>
@@ -420,6 +427,8 @@ const DEFAULT_CONFIG={
   ],
   // Shared by every tab: streamline geometry, glass brain and TractSeg bundle files.
   whole_brain:{tracks:'tracks_web.tck',glass_brain:'glass_brain.obj',glass_opacity:0.55},
+  // note under the 3D view on every tab; "" hides it. A tab can override it with its own "display_note".
+  display_note:'Streamlines are a random subset of the template tractogram, downsampled for web viewing. They show where results lie and are for visualisation only; they are not the full set of streamlines used in the analyses.',
   bundle_dir:'bundles',
   analyses:[]
 };
@@ -427,6 +436,7 @@ const DEFAULT_CONFIG={
 const DEFAULT_ANALYSIS={
   id:'',label:'Results',description:'',
   glass_brain:'',                 // optional: a different glass brain mesh for this tab (default: whole_brain.glass_brain)
+  display_note:null,              // optional: this tab's own note under the 3D view (default: the shared display_note)
   tracks:'',                      // optional: a different streamline file, for tabs analysed on another template (default: whole_brain.tracks)
   bundle_dir:'',                  // optional: a different TractSeg folder, for tabs analysed on another template (default: bundle_dir)
   reference:null,                 // e.g. {"id":"Controls","label":"Controls","n":40}; null for associations
@@ -1216,7 +1226,8 @@ function setMode(m){
 function setAnalysis(i,fromHash){
   state.ai=i;const a=A();
   document.querySelectorAll('#tabs .tab').forEach((t,k)=>{t.setAttribute('aria-selected',k===i);t.tabIndex=k===i?0:-1});
-  $('tab-desc').textContent=a.description;$('tab-desc').hidden=!a.description;
+  $('tab-desc').hidden=!richText($('tab-desc'),a.description);
+  $('viewer-note').hidden=!richText($('viewer-note'),a.display_note!=null?a.display_note:CFG.display_note);
   if(!fromHash&&ANALYSES.length>1){try{history.replaceState(null,'','#'+a.id)}catch(e){}}
   // a tab listed in "tabs" but not filled in yet
   $('placeholder').hidden=!a.placeholder;$('main').hidden=!!a.placeholder;
@@ -1237,8 +1248,8 @@ function setAnalysis(i,fromHash){
   for(const id of['detail','list','legend','ts-tools'])$(id).hidden=!a.hasTracts;
   $('ref-tools').hidden=!ref;$('ref-list').hidden=!ref;
   $('ts-title').textContent=ref?a.refTitle:a.hasTracts?t.title.replace('{n}',a.BUNDLES.length):'Tract-level results';
-  $('ts-desc').textContent=ref?(t.description||'Tick TractSeg tracts to outline them in the 3D view and see where the results lie. The outlines are anatomical reference only, not results.')
-    :a.hasTracts?(t.description||`${t.stat_label} (95% CI) for each tract. Select a tract to show it in the 3D view.`):'';
+  richText($('ts-desc'),ref?(t.description||'Tick TractSeg tracts to outline them in the 3D view and see where the results lie. The outlines are anatomical reference only, not results.')
+    :a.hasTracts?(t.description||`${t.stat_label} (95% CI) for each tract. Select a tract to show it in the 3D view.`):'');
   if(ref){if(!a.refInit){a.refInit=true;(t.show_by_default||[]).forEach(c=>state.refShown.add(c))}renderRefList()}
   // "Show" filter: all tracts, or only those below each significance level
   const lv=(t.sig_levels&&t.sig_levels.length?t.sig_levels:[t.alpha]).map(Number);
@@ -1281,12 +1292,26 @@ const hashIndex=()=>{const h=decodeURIComponent(location.hash.slice(1));return A
 // ======================================================================
 // 10. Page setup, terms gate and start-up
 // ======================================================================
+// Text from config.json may use a few formatting tags: <em>/<i> italic, <strong>/<b> bold, <sub>, <sup>,
+// <br> line break, <p> paragraph, <ul>/<ol> with <li> lists. A list of strings ["…", "…"] shows as separate
+// paragraphs. Any other tag or attribute is dropped and its text kept, so a typo can't break the page.
+const RICH_TAGS=new Set(['EM','I','STRONG','B','SUB','SUP','BR','P','UL','OL','LI']);
+function richText(el,v){
+  const html=Array.isArray(v)?v.filter(x=>x!=null&&x!=='').map(x=>`<p>${x}</p>`).join(''):(v==null?'':String(v));
+  const src=new DOMParser().parseFromString(`<body>${html}</body>`,'text/html').body,out=document.createDocumentFragment();
+  (function copy(from,to){for(const n of from.childNodes){
+    if(n.nodeType===3){to.appendChild(document.createTextNode(n.nodeValue));continue}
+    if(n.nodeType!==1||/^(SCRIPT|STYLE|TEMPLATE|IFRAME|OBJECT)$/.test(n.tagName))continue;
+    if(RICH_TAGS.has(n.tagName)){const e=document.createElement(n.tagName);to.appendChild(e);copy(n,e)}else copy(n,to)}})(src,out);
+  el.replaceChildren(out);
+  return el.textContent.trim()!=='';
+}
 function applyConfigToPage(){
-  $('title').textContent=CFG.title;document.title=CFG.title;$('subtitle').textContent=CFG.subtitle;$('subtitle').hidden=!CFG.subtitle;
-  $('ref-text').textContent=CFG.citation;$('lic').textContent=CFG.licence;$('lic-link').href=CFG.licence_url;
+  $('title').textContent=CFG.title;document.title=CFG.title;$('subtitle').hidden=!richText($('subtitle'),CFG.subtitle);
+  richText($('ref-text'),CFG.citation);$('lic').textContent=CFG.licence;$('lic-link').href=CFG.licence_url;
   if(CFG.doi_url){$('doi-link').href=CFG.doi_url;$('doi-link').hidden=false}
-  $('gate-intro').textContent=CFG.terms_intro;
-  $('gate-terms').innerHTML='';CFG.terms.forEach(t=>{const li=document.createElement('li');li.textContent=t;$('gate-terms').appendChild(li)});
+  richText($('gate-intro'),CFG.terms_intro);
+  $('gate-terms').innerHTML='';CFG.terms.forEach(t=>{const li=document.createElement('li');richText(li,t);$('gate-terms').appendChild(li)});
   $('gate-contact').textContent=CFG.contact?`Questions or requests for data access: ${CFG.contact}`:'';
   $('opt-glass-op').value=Math.max(0.05,Math.min(1,+CFG.whole_brain.glass_opacity||0.55));
 }
