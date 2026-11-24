@@ -1,7 +1,8 @@
 {
   "title": "FDC Results Explorer",
-  "subtitle": ["White matter fibre density and cross-section (FDC) in nonfluent variant primary progressive aphasia and logopenic-variant primary progressive aphasia.",
-"This viewer is an interactive visualisation of the results from Hazelton, Huang et al., 2026. It allows you to explore the results in 3D, and to view tract-level summary statistics."],
+  "subtitle": [
+      "Fibre density and cross-section (FDC) in <strong>nonfluent-variant</strong> (nfvPPA) and <strong>logopenic-variant</strong> (lvPPA) primary progressive aphasia.",
+  "Interactive results from Hazelton, Huang <em>et al.</em> (2026). Explore whole-brain results in 3D and tract-level summary statistics."],
   "tabs": [
     "baseline-atrophy",
     "longitudinal-atrophy",
