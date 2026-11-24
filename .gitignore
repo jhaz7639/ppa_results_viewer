@@ -1,0 +1,15 @@
+# Local test data and intermediate outputs
+test-data/
+viewer_ready/
+# not published with the viewer
+GUIDE.md
+README.md
+scripts/
+data/config.example.json
+data/config_snippets.txt
+data/config_long_v1.json
+data/config_old.json
+data/config.example.json
+# copies of your own result files: never publish these
+inputs/
+.DS_Store

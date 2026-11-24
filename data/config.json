@@ -1,0 +1,340 @@
+{
+  "title": "FDC Results Explorer",
+  "subtitle": "White matter fibre density and cross-section (FDC) in primary progressive aphasia.",
+  "tabs": [
+    "baseline-atrophy",
+    "longitudinal-atrophy",
+    "baseline-association",
+    "longitudinal-association"
+  ],
+  "values": {
+    "PNFA": "nfvPPA",
+    "nfvPPA": "nfvPPA",
+    "Logopenic": "lvPPA",
+    "Logopoenic": "lvPPA",
+    "LPA": "lvPPA",
+    "lvPPA": "lvPPA",
+    "Logopenic PPA": "lvPPA",
+    "Logopoenic PPA": "lvPPA"
+  },
+  "citation": "Hazelton, Huang, Matis, Quang, Monroe, Piguet, Ballard, & Landin-Romero, 2026. *Longitudinal fixel-based analysis reveals degeneration of speech motor white matter networks in nonfluent primary progressive aphasia*. Under review",
+  "doi_url": "https://doi.org/[DOI]",
+  "contact": "[corresponding author, email]",
+  "licence": "CC BY-NC 4.0",
+  "licence_url": "https://creativecommons.org/licenses/by-nc/4.0/",
+  "terms_version": "1",
+  "terms_intro": "These results come from people living with frontotemporal dementia and their families, who gave their time to research. To view them, please agree to the following.",
+  "terms": [
+    "You will use this viewer and anything it displays for non-commercial research or teaching only.",
+    "You will not download, extract, copy or redistribute the underlying data files, in whole or in part.",
+    "You will not attempt to identify any participant.",
+    "You will cite the associated paper when you use or refer to these results."
+  ],
+  "whole_brain": {
+    "tracks": "tracks_web.tck",
+    "glass_brain": "glass_brain.obj",
+    "glass_opacity": 0.55
+  },
+  "bundle_dir": "bundles",
+  "analyses": [
+    {
+      "id": "baseline-atrophy",
+      "label": "Baseline atrophy",
+      "description": "Whole-brain differences in FDC between groups at the first scan. Tick TractSeg tracts on the right to outline them for anatomical reference.",
+      "reference": null,
+      "contrasts": [
+        {
+          "id": "nfvPPA-lt-HC",
+          "label": "nfvPPA < HC",
+          "effect_tsf": "baseline-atrophy/nfvPPA-lt-HC/effect.tsf",
+          "p_tsf": [
+            "baseline-atrophy/nfvPPA-lt-HC/fwe_1mp_1.tsf"
+          ]
+        },
+        {
+          "id": "lvPPA-lt-HC",
+          "label": "lvPPA < HC",
+          "effect_tsf": "baseline-atrophy/lvPPA-lt-HC/effect.tsf",
+          "p_tsf": [
+            "baseline-atrophy/lvPPA-lt-HC/fwe_1mp_1.tsf"
+          ]
+        },
+        {
+          "id": "nfvPPA-lt-lvPPA",
+          "label": "nfvPPA < lvPPA",
+          "effect_tsf": "baseline-atrophy/nfvPPA-lt-lvPPA/effect.tsf",
+          "p_tsf": [
+            "baseline-atrophy/nfvPPA-lt-lvPPA/fwe_1mp_1.tsf"
+          ]
+        },
+        {
+          "id": "lvPPA-lt-nfvPPA",
+          "label": "lvPPA < nfvPPA",
+          "result": "non-significant"
+        }
+      ],
+      "default_view": "fixel",
+      "whole_brain": {
+        "effect_label": "FDC reduction (%)",
+        "effect_max": 30,
+        "p_files_are_1_minus_p": true
+      },
+      "tracts": {
+        "mode": "reference",
+        "title": "Tract reference",
+        "show_by_default": []
+      }
+    },
+    {
+      "id": "longitudinal-atrophy",
+      "label": "Longitudinal atrophy",
+      "description": "Change in FDC over time within each group. Whole brain: fixel-wise FDC decline (FWE-corrected). Tracts: descriptive annual percentage change (SPC) in mean FDC, no statistical test.",
+      "glass_brain": "glass_brain_longitudinal.obj",
+      "tracks": "tracks_longitudinal.tck",
+      "bundle_dir": "bundles_longitudinal",
+      "reference": null,
+      "contrasts": [
+        {
+          "id": "nfvPPA",
+          "label": "nfvPPA",
+          "effect_tsf": "longitudinal-atrophy/nfvPPA/effect.tsf",
+          "p_tsf": [
+            "longitudinal-atrophy/nfvPPA/fwe_1mp_1.tsf"
+          ]
+        },
+        {
+          "id": "lvPPA",
+          "label": "lvPPA",
+          "effect_tsf": "longitudinal-atrophy/lvPPA/effect.tsf",
+          "p_tsf": [
+            "longitudinal-atrophy/lvPPA/fwe_1mp_1.tsf"
+          ]
+        }
+      ],
+      "default_view": "fixel",
+      "whole_brain": {
+        "effect_label": "t-value (FDC decline)",
+        "effect_max": 5,
+        "method_label": "fixel-wise FWE",
+        "p_files_are_1_minus_p": true
+      },
+      "tracts": {
+        "summary_csv": [
+          {
+            "file": "longitudinal-atrophy/summary_nfvPPA.csv",
+            "group": "nfvPPA"
+          },
+          {
+            "file": "longitudinal-atrophy/summary_lvPPA.csv",
+            "group": "lvPPA"
+          }
+        ],
+        "columns": {
+          "bundle": "tract",
+          "sd": "std"
+        },
+        "descriptive": true,
+        "title": "Annual change in mean FDC in {n} TractSeg tracts",
+        "description": "Mean symmetrised percent change (SPC) per year in tract mean FDC, ± SD across participants. Descriptive; no statistical test.",
+        "stat_label": "Mean SPC (%/yr)",
+        "stat_short": "%/yr",
+        "stat_max": 3,
+        "signed": true,
+        "interval_label": "± SD",
+        "negative_label": "decline",
+        "positive_label": "increase"
+      }
+    },
+    {
+      "id": "baseline-association",
+      "label": "Baseline association",
+      "description": "Fixel-wise association between FDC and four speech measures at the first scan, within each group. Pick a group and a measure. Tick TractSeg tracts on the right to outline them for anatomical reference.",
+      "reference": null,
+      "selector_labels": {
+        "group": "Group",
+        "measure": "Speech measure"
+      },
+      "contrasts": [
+        {
+          "id": "nfvPPA-wd-ws",
+          "group": "nfvPPA",
+          "measure": "Word duration WS",
+          "effect_tsf": "baseline-association/nfvPPA-wd-ws/effect.tsf",
+          "p_tsf": [
+            "baseline-association/nfvPPA-wd-ws/fwe_1mp_1.tsf"
+          ]
+        },
+        {
+          "id": "nfvPPA-wd-sw",
+          "group": "nfvPPA",
+          "measure": "Word duration SW",
+          "n": 0,
+          "effect_tsf": "baseline-association/nfvPPA-wd-sw/effect.tsf",
+          "p_tsf": [
+            "baseline-association/nfvPPA-wd-sw/fwe_1mp_1.tsf"
+          ]
+        },
+        {
+          "id": "nfvPPA-pvi-ws",
+          "group": "nfvPPA",
+          "measure": "PVI WS",
+          "effect_tsf": "baseline-association/nfvPPA-pvi-ws/effect.tsf",
+          "p_tsf": [
+            "baseline-association/nfvPPA-pvi-ws/fwe_1mp_1.tsf"
+          ]
+        },
+        {
+          "id": "nfvPPA-pvi-sw",
+          "group": "nfvPPA",
+          "measure": "PVI SW",
+          "effect_tsf": "baseline-association/nfvPPA-pvi-sw/effect.tsf",
+          "p_tsf": [
+            "baseline-association/nfvPPA-pvi-sw/fwe_1mp_1.tsf"
+          ]
+        },
+        {
+          "id": "lvPPA-wd-ws",
+          "group": "lvPPA",
+          "measure": "Word duration WS",
+          "result": "non-significant"
+        },
+        {
+          "id": "lvPPA-wd-sw",
+          "group": "lvPPA",
+          "measure": "Word duration SW",
+          "result": "non-significant"
+        },
+        {
+          "id": "lvPPA-pvi-ws",
+          "group": "lvPPA",
+          "measure": "PVI WS",
+          "result": "non-significant"
+        },
+        {
+          "id": "lvPPA-pvi-sw",
+          "group": "lvPPA",
+          "measure": "PVI SW",
+          "result": "non-significant"
+        }
+      ],
+      "default_view": "fixel",
+      "whole_brain": {
+        "effect_label": "t-value",
+        "effect_max": 5,
+        "signed": true,
+        "negative_label": "negative association",
+        "positive_label": "positive association",
+        "p_files_are_1_minus_p": true
+      },
+      "tracts": {
+        "mode": "reference",
+        "title": "Tract reference",
+        "show_by_default": []
+      }
+    },
+    {
+      "id": "longitudinal-association",
+      "label": "Longitudinal association",
+      "description": "Correlation between yearly change in tract mean FDC and yearly change in each speech measure, within each group. Tract-level analysis of 39 TractSeg ROIs.",
+      "glass_brain": "glass_brain_longitudinal.obj",
+      "tracks": "tracks_longitudinal.tck",
+      "bundle_dir": "bundles_longitudinal",
+      "reference": null,
+      "selector_labels": {
+        "group": "Group",
+        "measure": "Speech measure"
+      },
+      "contrasts": [
+        {
+          "id": "nfvPPA-wd-ws",
+          "group": "nfvPPA",
+          "measure": "Word duration WS",
+          "n": 0
+        },
+        {
+          "id": "nfvPPA-wd-sw",
+          "group": "nfvPPA",
+          "measure": "Word duration SW",
+          "n": 0
+        },
+        {
+          "id": "nfvPPA-pvi-ws",
+          "group": "nfvPPA",
+          "measure": "PVI WS",
+          "n": 0
+        },
+        {
+          "id": "nfvPPA-pvi-sw",
+          "group": "nfvPPA",
+          "measure": "PVI SW",
+          "n": 0
+        },
+        {
+          "id": "lvPPA-wd-ws",
+          "group": "lvPPA",
+          "measure": "Word duration WS",
+          "n": 0
+        },
+        {
+          "id": "lvPPA-wd-sw",
+          "group": "lvPPA",
+          "measure": "Word duration SW",
+          "n": 0
+        },
+        {
+          "id": "lvPPA-pvi-ws",
+          "group": "lvPPA",
+          "measure": "PVI WS",
+          "n": 0
+        },
+        {
+          "id": "lvPPA-pvi-sw",
+          "group": "lvPPA",
+          "measure": "PVI SW",
+          "n": 0
+        }
+      ],
+      "default_view": "bundles",
+      "tracts": {
+        "summary_csv": "longitudinal-association/tracts.csv",
+        "columns": {
+          "bundle": "wm",
+          "measure": "speech",
+          "ci_lo": "ci_low",
+          "ci_hi": "ci_high"
+        },
+        "values": {
+          "WSduration": "Word duration WS",
+          "SWduration": "Word duration SW",
+          "WSWD": "Word duration WS",
+          "SWWD": "Word duration SW",
+          "WSPVI": "PVI WS",
+          "SWPVI": "PVI SW"
+        },
+        "title": "FDC change vs speech change in {n} TractSeg ROIs",
+        "description": "Correlation (95% CI) between yearly change in tract mean FDC and yearly change in the speech measure. Filled dots: p < .05.",
+        "stat_label": "Correlation (r)",
+        "stat_short": "r",
+        "stat_max": 1,
+        "axis_range": [
+          -1,
+          1
+        ],
+        "signed": true,
+        "sig_column": "p",
+        "q_label": "p",
+        "alpha": 0.05,
+        "sig_levels": [
+          0.05,
+          0.01,
+          0.001
+        ],
+        "colour_all": true,
+        "value_filter": true,
+        "method_label": "Pearson r",
+        "negative_label": "negative r",
+        "positive_label": "positive r"
+      }
+    }
+  ]
+}

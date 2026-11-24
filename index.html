@@ -1,0 +1,1374 @@
+<!--
+  File: index.html
+  Version: v1.1.1
+  Last Updated: Iteration 3
+  CHANGELOG
+    [v1.1.1] - Added: <meta name="robots" content="noindex, nofollow"> in <head> so search engines don't list the viewer during peer review (delete after acceptance).
+    [v1.1.0] - Added: shared top-level "values" in config.json (names translated in every tab's tract tables); Modified: "values" matching now ignores case, spaces, hyphens and underscores (loadTractCsv).
+    [v1.0.0] - Initial implementation (baseline saved to the WM_viewer_dashboard project). The viewer: config-driven tabs (tabs list with placeholders), terms-of-use gate, whole-brain FBA streamlines (1-p / p / -log10p / mask), per-tab templates (tracks, glass_brain, bundle_dir), TractSeg reference outlines, tract forest plots (results, descriptive, group x measure), p and r filters with direction buttons, CSV column/value mapping and per-file groups.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Keeps search engines from listing the viewer while the paper is under review. DELETE this line after acceptance. -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FDC Results Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: dark 3D viewer (sticky) beside a scrollable TractSeg forest plot; stacks on phones */
+:root{
+  --bg:#f3f5f6; --surface:#ffffff; --fg:#14202a; --muted:#5b6b78; --line:#d9e0e5; --soft:#e9eef1;
+  --accent:#0e7c86; --accent-fg:#ffffff; --sel:#e6f4f5; --warn-bg:#fff4dc; --warn-fg:#7a4b00;
+  --err-bg:#fde8e8; --err-fg:#8a1f1f;
+  --viewer-bg:#0b1117; --viewer-fg:#dbe5ec; --viewer-muted:#8a9aa7; --viewer-line:#223039;
+  --ci:#8796a2; --ns:#b6c1c9;
+  --font-display:"Instrument Sans","Segoe UI",system-ui,sans-serif;
+  --font-body:"Instrument Sans","Segoe UI",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1419; --surface:#151d24; --fg:#e3eaef; --muted:#93a3af; --line:#26333d; --soft:#1c262e;
+  --accent:#3cc4cf; --accent-fg:#06262a; --sel:#16343a; --warn-bg:#3a2c0e; --warn-fg:#f3c975;
+  --err-bg:#3a1414; --err-fg:#f5b3b3;
+  --viewer-bg:#070b0f; --viewer-line:#1d2a33; --ci:#6f808c; --ns:#4b5a65; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0e1419; --surface:#151d24; --fg:#e3eaef; --muted:#93a3af; --line:#26333d; --soft:#1c262e;
+  --accent:#3cc4cf; --accent-fg:#06262a; --sel:#16343a; --warn-bg:#3a2c0e; --warn-fg:#f3c975;
+  --err-bg:#3a1414; --err-fg:#f5b3b3;
+  --viewer-bg:#070b0f; --viewer-line:#1d2a33; --ci:#6f808c; --ns:#4b5a65; color-scheme:dark;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--font-display);font-size:clamp(24px,3.4vw,34px);font-weight:600;letter-spacing:-.01em;margin:2px 0 4px;text-wrap:balance}
+.sub{color:var(--muted);max-width:62ch}
+.banner{font-family:var(--font-mono);font-size:12px;background:var(--warn-bg);color:var(--warn-fg);padding:6px 10px;border-radius:6px;max-width:52ch}
+.groups{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.facets{display:flex;flex-direction:column;gap:8px}
+.facet-row{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.facet-label{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);min-width:9em;font-weight:600}
+.seg button small.ns{font-family:var(--font-body);font-style:italic}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:inherit;font-weight:500;border:0;background:transparent;color:var(--fg);padding:8px 14px;cursor:pointer;display:flex;gap:6px;align-items:baseline}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button small{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+.seg button[aria-pressed="true"] small{color:inherit;opacity:.8}
+.vs{color:var(--muted);font-size:13px}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){.main{grid-template-columns:minmax(0,1fr)}}
+
+.viewer{position:sticky;top:12px;background:var(--viewer-bg);color:var(--viewer-fg);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+@media (max-width:900px){.viewer{position:relative;top:auto}}
+.vbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--viewer-line);font-size:12.5px}
+.vbar label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.vbar input[type=checkbox]{accent-color:#3cc4cf}
+.vbar .glass-op input{width:80px;accent-color:#3cc4cf}
+.modebar{gap:8px 12px}
+.mode-label{color:var(--viewer-muted);font-size:12px}
+.modes{display:inline-flex;gap:2px;background:#131c23;border-radius:7px;padding:2px}
+.modes button{font:500 12.5px var(--font-body);border:0;background:transparent;color:var(--viewer-fg);padding:5px 11px;border-radius:5px;cursor:pointer}
+.modes button:hover{background:#1c2830}
+.modes button[aria-pressed="true"]{background:#24414a;color:#9eedf2}
+.thr-fixed{flex:1;color:var(--viewer-fg)}
+.bundle-note{flex:1;min-width:180px;color:var(--viewer-fg)}
+.bundle-note i{display:inline-block;width:9px;height:9px;border-radius:50%;margin:0 4px 0 2px;vertical-align:-1px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.views{display:inline-flex;gap:2px;background:#131c23;border-radius:6px;padding:2px}
+.views button{font:500 12px var(--font-mono);border:0;background:transparent;color:var(--viewer-fg);padding:4px 8px;border-radius:4px;cursor:pointer}
+.views button:hover{background:#22303a}
+.spacer{flex:1}
+.canvas-box{position:relative;height:clamp(360px,58vh,600px);touch-action:none}
+.canvas-box canvas{display:block;width:100%;height:100%;cursor:grab}
+.overlay{position:absolute;pointer-events:none;font-family:var(--font-mono);font-size:11px;color:var(--viewer-muted)}
+.ov-tl{top:10px;left:12px}
+.ov-tr{top:10px;right:12px;text-align:right}
+.ov-bl{left:12px;bottom:12px;display:flex;flex-direction:column;gap:4px}
+.ov-br{right:12px;bottom:12px;text-align:right}
+.cbar{width:170px;height:8px;border-radius:2px;background:linear-gradient(90deg,#fcffa4,#f8c932,#fb9b06,#ed6925,#cf4446,#a52c60,#781c6d)}
+.cbar-ticks{display:flex;justify-content:space-between;width:170px}
+.sel-chip{color:#7fe3ea}
+.vmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:13px;color:var(--viewer-fg);background:var(--viewer-bg)}
+.vmsg.err{color:#f5b3b3}
+.thr{display:flex;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid var(--viewer-line);font-size:12.5px;flex-wrap:wrap}
+.thr input[type=range]{flex:1;min-width:140px;accent-color:#3cc4cf}
+.thr output{font-family:var(--font-mono);min-width:12ch}
+.thr .frac{font-family:var(--font-mono);color:var(--viewer-muted)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-width:0}
+.ph{padding:14px 16px 10px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--line)}
+.ph h2{font-family:var(--font-display);font-size:17px;font-weight:600;margin:0}
+.ph p{margin:0;color:var(--muted);font-size:13px}
+.tools{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:13px}
+.tools select{font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--fg)}
+.tools label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.tools input{accent-color:var(--accent)}
+
+.detail{padding:12px 16px;border-bottom:1px solid var(--line);background:var(--soft);display:flex;flex-direction:column;gap:8px}
+.d-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.d-name{font-weight:600;font-size:15px}
+.d-code{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.d-clear{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:6px;padding:3px 8px;cursor:pointer;white-space:nowrap}
+.d-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.d-stats div{display:flex;flex-direction:column;min-width:0}
+.d-stats span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.d-stats b{font-family:var(--font-mono);font-weight:500;font-size:14px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.means{display:flex;flex-direction:column;gap:3px;margin-top:2px}
+.mrow{display:grid;grid-template-columns:72px minmax(0,1fr) 92px;gap:8px;align-items:center;font-size:12px}
+.mrow .lab{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow.on .lab{color:var(--fg);font-weight:600}
+.mrow .val{font-family:var(--font-mono);text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.track{position:relative;height:14px}
+.track .ci{position:absolute;top:6px;height:2px;background:var(--ci)}
+.track .dot{position:absolute;top:2px;width:10px;height:10px;border-radius:50%;transform:translateX(-50%);background:var(--muted)}
+.mrow.on .dot{background:var(--accent)}
+.mrow.hc .dot{background:var(--fg)}
+.d-empty{color:var(--muted);font-size:13px}
+
+.list-head{display:grid;grid-template-columns:minmax(92px,1.1fr) minmax(0,2fr) 64px;gap:8px;padding:8px 16px 6px;font-size:11px;color:var(--muted);letter-spacing:.04em;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface);z-index:1}
+.axis{position:relative;height:16px;font-family:var(--font-mono)}
+.axis span{position:absolute;transform:translateX(-50%);top:0}
+.list{max-height:clamp(380px,62vh,640px);overflow-y:auto;position:relative}
+.fam{padding:10px 16px 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:10px}
+.rwrap{display:flex;align-items:center}
+.rwrap .row{flex:1;min-width:0}
+.vis,.fam-vis{accent-color:var(--accent);width:14px;height:14px;margin:0;flex:none;cursor:pointer}
+.rwrap .vis{margin-left:16px}
+.with-vis .rwrap .row{padding-left:10px}
+.with-vis .list-head{padding-left:40px}
+.vis-tools{padding-top:2px}
+.vf{display:flex;align-items:center;gap:0}
+.vf input[type=range]{width:min(120px,26vw);margin:0;accent-color:var(--accent)}
+.vf-end{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);padding:0 6px}
+.vf-title{font-weight:500}
+.seg.sm button{padding:4px 10px;font-size:12.5px}
+.vf input[type=range]:disabled{opacity:.3;cursor:not-allowed}
+.vis-tools>span:first-child{font-weight:500}
+.btn.sm{padding:3px 10px;font-size:12.5px}
+.vis-count{color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums}
+.row{display:grid;grid-template-columns:minmax(92px,1.1fr) minmax(0,2fr) 64px;gap:8px;align-items:center;width:100%;border:0;background:transparent;color:var(--fg);font:inherit;text-align:left;padding:3px 16px;cursor:pointer}
+.row:hover{background:var(--soft)}
+.row[aria-pressed="true"]{background:var(--sel)}
+.row .nm{font-family:var(--font-mono);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .dv{font-family:var(--font-mono);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+.row.ns .dv,.row.ns .nm{color:var(--muted)}
+.fp{position:relative;height:18px}
+.fp .zero{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+.fp .ci{position:absolute;top:8px;height:2px;background:var(--ci)}
+.fp .pt{position:absolute;top:4px;width:10px;height:10px;border-radius:50%;transform:translateX(-50%)}
+.row.ns .pt{background:var(--surface)!important;border:1.5px solid var(--ns)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:10px 16px;border-top:1px solid var(--line)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:-1px;margin-right:5px}
+.panel-err{padding:16px;color:var(--err-fg);background:var(--err-bg);font-size:13px}
+
+.cite-box{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:12px}
+@media (max-width:760px){.cite-box{grid-template-columns:minmax(0,1fr)}}
+.cbox{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.cbox h3{margin:0;font-family:var(--font-display);font-size:15px;font-weight:600}
+.cbox p{margin:0;color:var(--muted);font-size:13px}
+.ref{font-size:13.5px;line-height:1.55;background:var(--soft);border-radius:6px;padding:10px 12px;overflow-wrap:anywhere;user-select:all}
+.btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-size:13px;font-weight:500;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:6px;padding:6px 12px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.toast{font-size:12px;color:var(--muted)}
+.lic{font-family:var(--font-mono);font-size:12px;display:inline-block;border:1px solid var(--line);border-radius:4px;padding:2px 6px;width:max-content}
+.cbox a{color:var(--accent)}
+
+.gate{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+  background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.gate-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;max-width:560px;width:100%;max-height:100%;overflow-y:auto;
+  padding:22px 22px 18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 18px 50px rgba(8,20,28,.22)}
+.gate-card h2{margin:0;font-family:var(--font-display);font-size:21px;font-weight:600}
+.gate-card p{margin:0;color:var(--muted)}
+.gate-card ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.gate-check{display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-weight:500}
+.gate-check input{margin-top:3px;accent-color:var(--accent);width:16px;height:16px}
+.gate-declined{font-size:13px;color:var(--fg);background:var(--soft);border-radius:6px;padding:8px 10px}
+/* analysis tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:thin}
+.tab{font:inherit;font-weight:500;font-size:14px;border:0;background:transparent;color:var(--muted);padding:10px 14px 9px;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--fg)}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tab-desc{color:var(--muted);max-width:90ch;margin:0}
+.banner ul{margin:4px 0 0;padding-left:18px}
+.panel-empty{padding:28px 16px;color:var(--muted);font-size:13.5px}
+.ns-note{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:80%;text-align:center;pointer-events:none;
+  background:rgba(7,11,15,.86);border:1px solid var(--viewer-line);color:var(--viewer-fg);border-radius:8px;padding:10px 16px;font-size:13.5px}
+.ref-row{display:grid;grid-template-columns:14px 12px minmax(84px,auto) minmax(0,1fr);gap:10px;align-items:center;padding:4px 16px;cursor:pointer;font-size:12.5px}
+.ref-row:hover{background:var(--soft)}
+.ref-row input{accent-color:var(--accent);width:14px;height:14px;margin:0;cursor:pointer}
+.ref-row .sw{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.15)}
+.ref-row .nm{font-family:var(--font-mono);font-size:12px}
+.ref-row .full{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ref-row.missing{opacity:.5;cursor:not-allowed}
+.ref-row.missing .full::after{content:" · no tract file"}
+.cbar-ends{display:flex;justify-content:space-between;gap:12px;width:220px;color:var(--viewer-muted)}
+.modes button:disabled{opacity:.35;cursor:not-allowed}
+.placeholder{border:1px dashed var(--line);border-radius:12px;background:var(--surface);padding:32px 24px;color:var(--muted);max-width:65ch}
+.placeholder strong{color:var(--fg)}
+.placeholder code{font-family:var(--font-mono);font-size:12px}
+.tab.draft{font-style:italic;opacity:.7}
+.modes button:disabled:hover{background:transparent}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="app">
+  <header>
+    <div>
+      <div class="eyebrow">Fixel-based analysis · interactive companion</div>
+      <h1 id="title">FDC Results Explorer</h1>
+      <div class="sub" id="subtitle"></div>
+    </div>
+    <div class="banner" id="banner" hidden></div>
+  </header>
+
+  <div class="tabs" role="tablist" id="tabs" aria-label="Analyses" hidden></div>
+  <p class="tab-desc" id="tab-desc" hidden></p>
+
+  <div class="facets" id="facets" hidden></div>
+  <div class="groups" id="groups">
+    <div class="seg" role="group" aria-label="Comparison" id="group-buttons"></div>
+    <span class="vs" id="vs"></span>
+  </div>
+
+  <div class="placeholder" id="placeholder" role="status" hidden></div>
+
+  <div class="main" id="main">
+    <section class="viewer" aria-label="3D results">
+      <div class="vbar modebar" id="modebar">
+        <span class="mode-label">3D view shows</span>
+        <div class="modes" role="group" aria-label="3D view shows">
+          <button data-mode="fixel" aria-pressed="true">Whole-brain FBA</button>
+          <button data-mode="bundles" aria-pressed="false">TractSeg bundles</button>
+        </div>
+      </div>
+      <div class="vbar">
+        <label><input type="checkbox" id="opt-glass" checked> Glass brain</label>
+        <label class="glass-op" for="opt-glass-op"><span class="vh">Glass brain opacity</span><input type="range" id="opt-glass-op" min="0.05" max="1" step="0.05" value="0.55"></label>
+        <label><input type="checkbox" id="opt-ctx" checked> Background streamlines</label>
+        <label><input type="checkbox" id="opt-spin"> Rotate</label>
+        <span class="spacer"></span>
+        <div class="views" role="group" aria-label="Camera view">
+          <button data-view="L">L</button><button data-view="R">R</button><button data-view="A">A</button><button data-view="S">S</button>
+        </div>
+      </div>
+      <div class="canvas-box" id="cbox">
+        <div class="overlay ov-tl" id="ov-group"></div>
+        <div class="overlay ov-tr" id="ov-sel"></div>
+        <div class="overlay ov-bl">
+          <span id="cbar-label"></span>
+          <div class="cbar" id="cbar"></div>
+          <div class="cbar-ticks" id="cbar-ticks"></div>
+          <div class="cbar-ends" id="cbar-ends" hidden></div>
+        </div>
+        <div class="overlay ov-br">Drag to rotate<br>Scroll or pinch to zoom</div>
+        <div class="ns-note" id="ns-note" role="status" hidden></div>
+        <div class="vmsg" id="vmsg">Loading…</div>
+      </div>
+      <div class="thr">
+        <label for="thr" class="fixel-only">Threshold</label>
+        <input type="range" id="thr" class="fixel-only" min="1.301" max="3" step="0.01" value="1.301">
+        <output id="thr-out" class="fixel-only" for="thr">p<sub>FWE</sub> &lt; 0.050</output>
+        <span class="thr-fixed" id="thr-fixed" hidden></span>
+        <span class="bundle-note" id="bundle-note" hidden></span>
+        <span class="frac" id="sig-frac"></span>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Tract-level results">
+      <div class="ph">
+        <h2 id="ts-title">Tract-level results</h2>
+        <p id="ts-desc"></p>
+        <div class="tools" id="ts-tools">
+          <label for="sort">Order</label>
+          <select id="sort"><option value="anat">Anatomical</option><option value="d">Effect size</option></select>
+          <label for="sigfilter" id="sigfilter-label">Show</label>
+          <select id="sigfilter"><option value="">All tracts</option></select>
+        </div>
+        <div class="tools" id="dir-tools" hidden>
+          <span class="vf-title" id="dir-title">Direction</span>
+          <div class="seg sm" role="group" aria-labelledby="dir-title" id="dir-buttons">
+            <button data-dir="both" aria-pressed="true">Both</button>
+            <button data-dir="neg" aria-pressed="false">Negative</button>
+            <button data-dir="pos" aria-pressed="false">Positive</button>
+          </div>
+        </div>
+        <div class="tools vf-tools" id="vf-tools" hidden>
+          <span class="vf-title" id="vf-title">r filter</span>
+          <div class="vf" title="Drag the handles outwards from 0 to hide weaker results">
+            <span class="vf-end">−1</span>
+            <input type="range" id="vf-neg" min="-1" max="0" step="0.05" value="0" aria-label="Show results at or below this value">
+            <input type="range" id="vf-pos" min="0" max="1" step="0.05" value="0" aria-label="Show results at or above this value">
+            <span class="vf-end">1</span>
+          </div>
+          <label><input type="checkbox" id="vf-link" checked> Same on both sides</label>
+          <span class="vis-count" id="vf-text"></span>
+        </div>
+        <div class="tools vis-tools" id="vis-tools" hidden>
+          <span>Tracts in 3D</span>
+          <button class="btn sm" id="vis-all">Select all</button>
+          <button class="btn sm" id="vis-none">Deselect all</button>
+          <span class="vis-count" id="vis-count"></span>
+        </div>
+        <div class="tools vis-tools" id="ref-tools" hidden>
+          <span>Tracts in 3D</span>
+          <button class="btn sm" id="ref-all">Select all</button>
+          <button class="btn sm" id="ref-none">Deselect all</button>
+          <span class="vis-count" id="ref-count"></span>
+        </div>
+      </div>
+      <div class="panel-empty" id="panel-empty" hidden></div>
+      <div class="detail" id="detail"></div>
+      <div class="list" id="list"></div>
+      <div class="list ref-list" id="ref-list" hidden></div>
+      <div class="legend" id="legend">
+        <span><i id="legend-dot" style="background:#cf4446"></i><span id="legend-sig">significant, coloured by effect</span></span>
+        <span><i style="border:1.5px solid var(--ns);background:var(--surface)"></i>not significant</span>
+      </div>
+    </section>
+  </div>
+
+  <section class="cite-box" aria-label="Citation and licence">
+    <div class="cbox">
+      <h3>How to cite</h3>
+      <p>If you use or refer to these results, cite the paper:</p>
+      <div class="ref" id="ref-text"></div>
+      <div class="btns"><button class="btn" id="copy-ref">Copy citation</button><a id="doi-link" href="#" target="_blank" rel="noopener" hidden>Open the paper</a><span class="toast" id="copy-toast" aria-live="polite"></span></div>
+    </div>
+    <div class="cbox">
+      <h3>Licence and terms</h3>
+      <span class="lic" id="lic">CC BY-NC 4.0</span>
+      <p>This viewer and its displayed results are shared for non-commercial research and teaching, under the terms of use you accepted.</p>
+      <div class="btns"><button class="btn" id="reopen-terms">Read the terms of use</button></div>
+      <p><a id="lic-link" href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">About this licence</a></p>
+    </div>
+  </section>
+</div>
+
+<div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title" hidden>
+  <div class="gate-card">
+    <div class="eyebrow">Before you view the results</div>
+    <h2 id="gate-title">Terms of use</h2>
+    <p id="gate-intro"></p>
+    <ol id="gate-terms"></ol>
+    <p id="gate-contact"></p>
+    <label class="gate-check"><input type="checkbox" id="gate-ok"> I have read and agree to these terms of use</label>
+    <div class="btns">
+      <button class="btn primary" id="gate-accept" disabled>Agree and view results</button>
+      <button class="btn" id="gate-decline">Decline</button>
+    </div>
+    <div class="gate-declined" id="gate-declined" hidden>The results can only be shown after you agree to the terms. You can close this page, or tick the box above if you change your mind.</div>
+  </div>
+</div>
+
+<!-- three.js r128 (MIT licence), bundled so the archived copy works without a CDN -->
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<!-- Fallback: if lib/ is missing, load the same versions from a CDN -->
+<script>
+if(!window.THREE){
+  document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+  document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');
+}else if(!THREE.OrbitControls){
+  document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');
+}
+</script>
+<script>
+/* =========================================================================
+   FDC Results Explorer
+   Everything study-specific (tabs, comparisons, file names, labels, terms)
+   comes from data/config.json. See GUIDE.md before editing this file.
+   ========================================================================= */
+(function(){
+"use strict";
+const DATA_DIR='data/';
+const $=id=>document.getElementById(id);
+const hasThree=typeof THREE!=='undefined'&&THREE.OrbitControls;
+
+// ======================================================================
+// 1. Settings and defaults. Anything here can be overridden in config.json.
+// ======================================================================
+const DEFAULT_CONFIG={
+  title:'FDC Results Explorer',
+  subtitle:'',
+  citation:'[Authors]. [Paper title]. [Journal]. [Year];[Volume]:[Pages]. doi:[DOI]',
+  doi_url:'',
+  contact:'[corresponding author, contact address]',
+  licence:'CC BY-NC 4.0',
+  licence_url:'https://creativecommons.org/licenses/by-nc/4.0/',
+  terms_version:'1',
+  terms_intro:'These results come from people living with frontotemporal dementia and their families, who gave their time to research. To view them, please agree to the following.',
+  terms:[
+    'You will use this viewer and anything it displays for non-commercial research or teaching only.',
+    'You will not download, extract, copy or redistribute the underlying data files, in whole or in part.',
+    'You will not attempt to identify any participant.',
+    'You will cite the associated paper when you use or refer to these results.'
+  ],
+  // Shared by every tab: streamline geometry, glass brain and TractSeg bundle files.
+  whole_brain:{tracks:'tracks_web.tck',glass_brain:'glass_brain.obj',glass_opacity:0.55},
+  bundle_dir:'bundles',
+  analyses:[]
+};
+// One entry of "analyses" = one tab.
+const DEFAULT_ANALYSIS={
+  id:'',label:'Results',description:'',
+  glass_brain:'',                 // optional: a different glass brain mesh for this tab (default: whole_brain.glass_brain)
+  tracks:'',                      // optional: a different streamline file, for tabs analysed on another template (default: whole_brain.tracks)
+  bundle_dir:'',                  // optional: a different TractSeg folder, for tabs analysed on another template (default: bundle_dir)
+  reference:null,                 // e.g. {"id":"Controls","label":"Controls","n":40}; null for associations
+  selector_labels:{group:'Group',measure:'Measure'},   // row titles when contrasts have "group" and "measure"
+  contrasts:[],                   // the buttons under the tabs: [{id,label,n,effect_tsf,p_tsf}]
+  default_view:'fixel',           // "fixel" or "bundles"
+  whole_brain:{effect_label:'Effect',effect_max:1,signed:false,
+    p_format:'',                    // what the p files hold: "1-p" (MRtrix fwe_1mpvalue, default), "p", "-log10p" (SwE lpFWE), or "mask" (non-zero = significant)
+    p_files_are_1_minus_p:true,     // older setting; false means plain p
+    method_label:'fixel-wise FWE',  // shown on the 3D view, e.g. "SwE, FWE"
+    p_label:'p<sub>FWE</sub>',      // shown on the threshold slider
+    threshold_label:'',             // for "mask" maps (already thresholded), e.g. "p<sub>FWE</sub> &lt; .01" 
+    nonsig_message:'No significant results were observed.',   // shown for non-significant comparisons
+    negative_label:'negative',positive_label:'positive'},
+  tracts:{mode:'results',           // "results" (statistics per tract) or "reference" (outlines to show/hide only)
+    show_by_default:[],             // reference mode: tracts ticked when the tab first opens
+    summary_csv:'',               // the tract table (CSV), or a list of tables to combine, e.g. one per group
+    columns:{},                    // your column names, if they differ: e.g. {"bundle":"wm","measure":"speech","ci_lo":"ci_low","ci_hi":"ci_high"}
+    values:{},                     // your cell values, if they differ from config.json: e.g. {"PNFA":"nfvPPA","WSWD":"Word duration W–S"}
+    title:'Mean FDC in {n} TractSeg bundles',description:'',method_label:'FDR',
+    stat_label:"Cohen's d",stat_short:'',stat_max:2,signed:false,
+    change_label:'FDC change',q_label:'FDR q',alpha:0.05,
+    descriptive:false,             // true = descriptive values (e.g. mean ± SD), no significance testing
+    axis_range:null,               // fixed forest-plot axis, e.g. [-1, 1] for correlations (default: fitted to the data)
+    sig_column:'q',                // CSV column used for significance: "q" (corrected) or "p"
+    sig_levels:[],                 // choices in the "Show" filter, e.g. [0.05, 0.01, 0.001] (default: [alpha])
+    colour_all:false,              // true = colour every tract by its value in 3D (default: non-significant tracts grey)
+    value_filter:false,            // true = slider from -1 to 1 that hides weaker results (e.g. small |r|)
+    direction_filter:null,         // Both / Negative / Positive buttons (default: on for signed results with value_filter)
+    interval_label:'',             // what the bars show, e.g. "± SD" (default "95% CI", or "± SD" when an sd column is given)
+    negative_label:'negative',positive_label:'positive'}
+};
+function merge(a,b){const o={...a};for(const k in b){o[k]=(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k]&&typeof a[k]==='object')?merge(a[k],b[k]):b[k]}return o}
+const slug=s=>String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'tab';
+
+// Config files written for the earlier single-tab version (top-level "groups") still work.
+function upgradeLegacyConfig(c){
+  if(Array.isArray(c.analyses)&&c.analyses.length)return c;
+  if(!Array.isArray(c.groups))return c;
+  const wb=c.whole_brain||{},ts=c.tractseg||{};
+  c.bundle_dir=c.bundle_dir||ts.bundle_dir||'bundles';
+  c.analyses=[{id:'results',label:'Results',reference:c.controls||{id:'Controls',label:'Controls'},
+    contrasts:c.groups,default_view:c.default_view||'fixel',
+    whole_brain:{effect_label:wb.effect_label,effect_max:wb.effect_max,p_files_are_1_minus_p:wb.p_files_are_1_minus_p},
+    tracts:{summary_csv:ts.summary_csv||'tractseg_fdc_summary.csv',stat_label:ts.stat_label,stat_max:ts.d_max,description:ts.description,alpha:ts.alpha}}];
+  for(const a of c.analyses){for(const s of['whole_brain','tracts'])for(const k in a[s])if(a[s][k]===undefined)delete a[s][k]}
+  return c;
+}
+
+// ======================================================================
+// 2. File readers: MRtrix .tck / .tsf, Wavefront .obj, CSV
+// ======================================================================
+function readHeader(buf,name){
+  const bytes=new Uint8Array(buf,0,Math.min(buf.byteLength,1<<20));
+  let text='';for(let i=0;i<bytes.length;i++)text+=String.fromCharCode(bytes[i]);
+  const end=text.indexOf('\nEND\n');
+  if(end<0)throw new Error(`${name}: no END line in header. Is this an MRtrix .tck or .tsf file?`);
+  const lines=text.slice(0,end).split('\n');const magic=lines[0].trim();const props={};
+  for(const l of lines.slice(1)){const i=l.indexOf(':');if(i>0)props[l.slice(0,i).trim()]=l.slice(i+1).trim()}
+  if(!props.file)throw new Error(`${name}: header has no "file:" entry.`);
+  return{magic,offset:parseInt(props.file.split(/\s+/)[1],10),datatype:props.datatype||'Float32LE'};
+}
+function readFloats(buf,offset,datatype,name){
+  const dt=datatype.toLowerCase();const dv=new DataView(buf);
+  const size=dt.startsWith('float64')?8:dt.startsWith('float32')?4:0;
+  if(!size)throw new Error(`${name}: unsupported datatype ${datatype}.`);
+  const le=!dt.endsWith('be');const n=Math.floor((buf.byteLength-offset)/size);const out=new Float32Array(n);
+  if(size===4&&le&&offset%4===0){out.set(new Float32Array(buf,offset,n));return out}
+  for(let i=0;i<n;i++)out[i]=size===4?dv.getFloat32(offset+i*4,le):dv.getFloat64(offset+i*8,le);
+  return out;
+}
+function parseTck(buf,name){
+  const h=readHeader(buf,name);
+  if(!/tracks/.test(h.magic))throw new Error(`${name}: expected "mrtrix tracks", found "${h.magic}".`);
+  const f=readFloats(buf,h.offset,h.datatype,name);
+  const pos=[],start=[],len=[];let cur=0,n=0;
+  for(let i=0;i+2<f.length;i+=3){const x=f[i];
+    if(Number.isNaN(x)){if(n>0){start.push(cur);len.push(n)}cur+=n;n=0;continue}
+    if(!Number.isFinite(x))break;pos.push(f[i],f[i+1],f[i+2]);n++}
+  if(n>0){start.push(cur);len.push(n)}
+  return{ras:new Float32Array(pos),start:Int32Array.from(start),len:Int32Array.from(len)};
+}
+function parseTsf(buf,name){
+  const h=readHeader(buf,name);
+  if(!/scalars/.test(h.magic))throw new Error(`${name}: expected "mrtrix track scalars", found "${h.magic}".`);
+  const f=readFloats(buf,h.offset,h.datatype,name);const vals=[];
+  for(let i=0;i<f.length;i++){const v=f[i];if(Number.isNaN(v))continue;if(!Number.isFinite(v))break;vals.push(v)}
+  return new Float32Array(vals);
+}
+function parseObj(text){
+  const v=[],idx=[];
+  for(const line of text.split('\n')){
+    if(line.startsWith('v ')){const p=line.trim().split(/\s+/);v.push(+p[1],+p[2],+p[3])}
+    else if(line.startsWith('f ')){const p=line.trim().split(/\s+/).slice(1).map(s=>parseInt(s.split('/')[0],10)-1);
+      for(let k=1;k+1<p.length;k++)idx.push(p[0],p[k],p[k+1])}}
+  return{ras:new Float32Array(v),index:idx};
+}
+function parseCsv(text){
+  text=text.replace(/\r\n?/g,'\n').replace(/^\uFEFF/,'');
+  const h=text.slice(0,text.indexOf('\n')>=0?text.indexOf('\n'):text.length);
+  const sep=h.includes('\t')?'\t':(h.includes(';')&&!h.includes(','))?';':',';   // comma, semicolon (some Excel exports) or tab
+  // quoted cells may contain the separator, e.g. a covariates cell "age, sex"
+  const rows=[];let row=[],cell='',q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(q){if(ch==='"'){if(text[i+1]==='"'){cell+='"';i++}else q=false}else cell+=ch}
+    else if(ch==='"')q=true;
+    else if(ch===sep){row.push(cell.trim());cell=''}
+    else if(ch==='\n'){row.push(cell.trim());cell='';if(row.some(c=>c!==''))rows.push(row);row=[]}
+    else cell+=ch}
+  row.push(cell.trim());if(row.some(c=>c!==''))rows.push(row);
+  const head=(rows.shift()||[]).map(h=>h.toLowerCase());
+  return rows.map(r=>{const o={};head.forEach((h,i)=>o[h]=r[i]);return o});
+}
+const num=v=>(v===undefined||v===''||/^na$/i.test(v))?NaN:parseFloat(v);
+async function fetchBuf(path){const r=await fetch(DATA_DIR+path);if(!r.ok)throw new Error(`Could not load data/${path} (HTTP ${r.status}). Check the file name in config.json.`);return r.arrayBuffer()}
+async function fetchText(path){const r=await fetch(DATA_DIR+path);if(!r.ok)throw new Error(`Could not load data/${path} (HTTP ${r.status}). Check the file name in config.json.`);return r.text()}
+
+// ======================================================================
+// 3. State
+// ======================================================================
+let CFG=DEFAULT_CONFIG,MODE='demo';
+let ANALYSES=[];            // built from config.analyses (one per tab)
+let WB=null;                // demo streamlines {ras,start,len}
+// Streamlines and TractSeg folders can differ per tab (tabs analysed on another template).
+// Each tractogram file is loaded once: TRACKS[path] = {ras,start,len}, or null if it failed to load.
+const TRACKS={},TRACKS_LOAD={};
+const tracksPath=a=>a.tracks||CFG.whole_brain.tracks;
+const bundleDir=a=>a.bundle_dir||CFG.bundle_dir;
+function loadTracks(path){
+  if(MODE==='demo')return Promise.resolve(WB);
+  if(!path)return Promise.resolve(null);
+  return TRACKS_LOAD[path]||(TRACKS_LOAD[path]=fetchBuf(path).then(b=>TRACKS[path]=parseTck(b,path))
+    .catch(e=>{TRACKS[path]=null;ISSUES.push(e.message);showBanner('');return null}));
+}
+const tracksFor=a=>MODE==='demo'?WB:TRACKS[tracksPath(a)];   // undefined = not loaded yet, null = failed
+let demoBundleFibers=null;  // demo only
+const ISSUES=[];            // setup problems shown in the yellow note
+const state={dir:'both',ai:0,contrast:null,mode:'fixel',pthr:0.05,sel:null,sort:'anat',sigOnly:false,shown:new Set(),refShown:new Set(),sigLevel:null,vf:{neg:0,pos:0}};
+const A=()=>ANALYSES[state.ai];
+
+function buildAnalysis(raw,i){
+  const a=merge(DEFAULT_ANALYSIS,raw);
+  a.id=slug(a.id||a.label||('analysis-'+(i+1)));
+  // A comparison counts as non-significant if it is marked "non-significant" (in "result",
+  // "effect_tsf" or "p_tsf") or has no whole-brain files in a tab that shows whole-brain results.
+  const isNS=v=>typeof v==='string'&&v.trim().toLowerCase()==='non-significant';
+  a.contrasts=(a.contrasts||[]).map(c=>{const p=c.p_tsf?[].concat(c.p_tsf):[];
+    const marked=[c.result,c.effect_tsf,...p].some(isNS),files=p.length>0&&!marked;   // the effect file is optional: without it, colour by significance
+    const two=c.group!=null&&c.measure!=null;
+    return{...c,label:c.label||(two?`${c.group} · ${c.measure}`:c.id),effect_tsf:files?(c.effect_tsf||''):'',p_tsf:files?p:[],marked}});
+  // contrasts with both "group" and "measure" get two rows of buttons (e.g. nfvPPA/lvPPA × 4 speech measures)
+  a.facets=a.contrasts.length>0&&a.contrasts.every(c=>c.group!=null&&c.measure!=null);
+  a.groupList=[...new Set(a.contrasts.map(c=>c.group))];a.measureList=[...new Set(a.contrasts.map(c=>c.measure))];
+  a.hasWB=a.contrasts.some(c=>c.p_tsf.length||c.marked)||!!(raw.whole_brain&&Object.keys(raw.whole_brain).length);
+  a.contrasts.forEach(c=>c.nonsig=a.hasWB&&!c.p_tsf.length);
+  const pf=String(a.whole_brain.p_format||'').toLowerCase().replace(/\s/g,'');
+  a.pFormat=pf==='p'||pf==='-log10p'||pf==='mask'?pf:pf==='1-p'?'1-p':(a.whole_brain.p_files_are_1_minus_p===false?'p':'1-p');
+  a.colourByP=a.contrasts.some(c=>c.p_tsf.length&&!c.effect_tsf);
+  // TractSeg tracts as anatomical reference only (tick boxes, outlines, no statistics)
+  a.tractRef=a.tracts.mode==='reference';
+  a.REF_BUNDLES=a.tractRef?(Array.isArray(a.tracts.bundles)&&a.tracts.bundles.length?a.tracts.bundles:TRACTSEG72):[];
+  a.refTitle=(raw.tracts&&raw.tracts.title)||'Tract reference';
+  a.hasTracts=!a.tractRef&&(!!a.tracts.summary_csv||!!raw._demoTracts);
+  a.STATS={};a.MEANS={};a.BUNDLES=[];a.EFF={};a.PV={};a.loads={};
+  if(!a.contrasts.length)ISSUES.push(`Tab "${a.label}": no "contrasts" listed.`);
+  if(!a.hasWB&&!a.hasTracts)ISSUES.push(`Tab "${a.label}": has neither whole-brain files (effect_tsf and p_tsf) nor a tract CSV (tracts.summary_csv).`);
+  return a;
+}
+// Optional "tabs" list at the top of config.json: the tabs to show, in order. Each is an id (or
+// {"id","label"}) matching an entry in "analyses". Tabs listed but not filled in yet show a placeholder;
+// entries in "analyses" that aren't listed are not shown. Lets you build one tab at a time.
+const prettify=id=>{const s=String(id).replace(/[-_]+/g,' ').trim();return s.charAt(0).toUpperCase()+s.slice(1)};
+function arrangeTabs(list,tabs){
+  const byId={};list.forEach((r,i)=>{if(r&&typeof r==='object')byId[slug(r.id||r.label||('analysis-'+(i+1)))]=r});
+  const out=[],used=new Set();
+  tabs.forEach((t,i)=>{
+    const o=t&&typeof t==='object'?t:{id:t},id=slug(o.id||o.label||('tab-'+(i+1)));
+    if(used.has(id)){ISSUES.push(`"tabs" lists "${id}" twice; showing it once.`);return}used.add(id);
+    const raw=byId[id];
+    if(raw&&Array.isArray(raw.contrasts)&&raw.contrasts.length){out.push(buildAnalysis({...raw,id,label:raw.label||o.label},i));return}
+    const label=(raw&&raw.label)||o.label||prettify(id);
+    ISSUES.push(`Tab "${label}" is listed in "tabs" but not set up yet (${raw?'its entry in "analyses" has no "contrasts"':`no entry in "analyses" has "id": "${id}"`}). It shows as a placeholder.`);
+    out.push(placeholderTab(id,label,raw&&raw.description));
+  });
+  return out;
+}
+function placeholderTab(id,label,description){
+  return{...merge(DEFAULT_ANALYSIS,{}),id,label,description:description||'',placeholder:true,contrasts:[],facets:false,groupList:[],measureList:[],
+    hasWB:false,hasTracts:false,tractRef:false,REF_BUNDLES:[],STATS:{},MEANS:{},BUNDLES:[],EFF:{},PV:{},loads:{}};
+}
+const contrastName=(a,c)=>a.reference?`${c.label} vs ${a.reference.label}`:c.label;
+
+// ======================================================================
+// 4. Real data loading
+// ======================================================================
+async function loadConfig(){
+  const r=await fetch(DATA_DIR+'config.json',{cache:'no-cache'});
+  if(!r.ok)throw Object.assign(new Error('no config'),{noConfig:true});
+  let raw;try{raw=await r.json()}catch(e){throw new Error('data/config.json is not valid JSON ('+e.message+'). Check for a missing comma or quote.')}
+  CFG=merge(DEFAULT_CONFIG,upgradeLegacyConfig(raw));
+  const list=Array.isArray(CFG.analyses)?CFG.analyses:[],hasTabs=Array.isArray(CFG.tabs)&&CFG.tabs.length;
+  if(!hasTabs&&!list.length)throw new Error('config.json has no "analyses" (tabs).');
+  ANALYSES=hasTabs?arrangeTabs(list,CFG.tabs):list.map(buildAnalysis);
+  await Promise.all(ANALYSES.filter(a=>a.hasTracts).map(loadTractCsv));
+}
+async function loadTractCsv(a){
+  let rows;
+  // one table, or a list; a list entry can be {"file": "...", "group": "nfvPPA"} for a table with no group column
+  const files=[].concat(a.tracts.summary_csv).filter(Boolean).map(f=>typeof f==='string'?{file:f}:f),fname=files.map(f=>f.file).join(', ');
+  try{rows=(await Promise.all(files.map(f=>fetchText(f.file).then(parseCsv).then(rs=>{
+    if(f.group!=null)rs.forEach(r=>{if(r.group==null&&r.contrast==null)r.group=String(f.group)});
+    if(f.measure!=null)rs.forEach(r=>{if(r.measure==null)r.measure=String(f.measure)});return rs})))).flat()}
+  catch(e){ISSUES.push(`Tab "${a.label}": ${e.message}`);a.hasTracts=false;return}
+  // your own column names and cell values -> the ones the viewer uses ("columns" and "values" in config.json)
+  const colMap=Object.entries(a.tracts.columns||{}).map(([std,yours])=>[std.toLowerCase(),String(yours).toLowerCase()]);
+  // shared "values" at the top of config.json, then this tab's own; matching ignores case, spaces, hyphens and underscores
+  const norm=v=>String(v).toLowerCase().replace(/[^a-z0-9]/g,''),valMap={};
+  for(const m of[CFG.values,a.tracts.values])if(m&&typeof m==='object')for(const k in m)valMap[norm(k)]=m[k];
+  const mapVal=v=>{if(v==null)return v;const k=norm(v);return Object.prototype.hasOwnProperty.call(valMap,k)?valMap[k]:v};
+  for(const r of rows){for(const[std,yours]of colMap)if(yours in r)r[std]=r[yours];
+    for(const k of['bundle','group','contrast','measure'])if(r[k]!=null)r[k]=mapVal(r[k])}
+  if(!rows.length||!('bundle' in rows[0])){ISSUES.push(`Tab "${a.label}": ${fname} needs a "bundle" column (or set "columns": {"bundle": "<your column>"} in "tracts").`);a.hasTracts=false;return}
+  const ids=new Set(a.contrasts.map(c=>c.id)),ref=a.reference&&a.reference.id,unknown=new Set(),seen=new Set();
+  a.contrasts.forEach(c=>a.STATS[c.id]={});
+  for(const r of rows){
+    const b=r.bundle;let g=r.contrast||r.group;if(!b||!g)continue;
+    if(r.measure&&a.facets){   // spreadsheet rows given as group + measure: find the matching comparison
+      const c=a.contrasts.find(x=>x.group===g&&x.measure===r.measure);if(!c){unknown.add(`${g} / ${r.measure}`);continue}g=c.id}
+    if(g!==ref&&!ids.has(g)){unknown.add(g);continue}
+    if(!seen.has(b)){seen.add(b);a.BUNDLES.push(b);a.MEANS[b]={}}
+    if(Number.isFinite(num(r.mean)))a.MEANS[b][g]={m:num(r.mean),lo:num(r.ci_lo),hi:num(r.ci_hi)};
+    if(g!==ref){
+      const v=[r.stat,r.d,r.r,r.estimate,a.tracts.descriptive?r.mean:undefined].map(num).find(Number.isFinite),sd=num(r.sd);
+      const noMean=!Number.isFinite(num(r.mean));   // ci_lo/ci_hi belong to the statistic when there is no group mean
+      let lo=num(r.stat_ci_lo??r.d_ci_lo??r.r_ci_lo??r.ci_lower??(noMean?r.ci_lo:undefined)),hi=num(r.stat_ci_hi??r.d_ci_hi??r.r_ci_hi??r.ci_upper??(noMean?r.ci_hi:undefined));
+      const sc=String(a.tracts.sig_column||'q').toLowerCase(),sig=num(r[sc]??(sc==='p'?(r.p_value??r.pval):undefined));
+      if(!Number.isFinite(lo)&&Number.isFinite(sd)&&Number.isFinite(v)){lo=v-sd;hi=v+sd;a.sdBars=true}   // descriptive: mean ± SD
+      a.STATS[g][b]={d:v,lo,hi,sd,q:sig,pct:num(r.pct_change)};
+      if(a.tracts.descriptive&&Number.isFinite(v))a.MEANS[b][g]={m:v,lo,hi}}   // so the detail panel compares groups
+  }
+  if(unknown.size)ISSUES.push(`Tab "${a.label}": rows with group "${[...unknown].join('", "')}" in ${fname} don't match any contrast id${ref?` or the reference "${ref}"`:''}${a.facets?' (for a group and measure pair, both must match exactly; use "values" in "tracts" to translate your spreadsheet\'s names)':''}.`);
+  for(const c of a.contrasts)if(!Object.keys(a.STATS[c.id]).length)ISSUES.push(`Tab "${a.label}": no tract rows for contrast "${c.id}".`);
+}
+function loadContrastMaps(a,cid){
+  if(a.EFF[cid])return Promise.resolve();
+  const con=a.contrasts.find(x=>x.id===cid);if(!con||con.nonsig)return Promise.resolve();
+  if(a.loads[cid])return a.loads[cid];
+  const c=a.contrasts.find(x=>x.id===cid),W=tracksFor(a);
+  if(!W)return Promise.reject(new Error(`Streamlines ${tracksPath(a)} could not be loaded.`));
+  const NP=W.ras.length/3;
+  return a.loads[cid]=(async()=>{
+    if(!c.p_tsf.length)throw new Error(`No whole-brain files listed for "${contrastName(a,c)}".`);
+    const hasE=!!c.effect_tsf,files=hasE?[c.effect_tsf,...c.p_tsf]:[...c.p_tsf];
+    const bufs=await Promise.all(files.map(fetchBuf));
+    const arr=bufs.map((b,i)=>{const v=parseTsf(b,files[i]);
+      if(v.length!==NP)throw new Error(`${files[i]} has ${v.length} values but ${tracksPath(a)} has ${NP} points. Make both with fixel2tsf from the same .tck file.`);return v});
+    const E=new Float32Array(NP),P=new Float32Array(NP).fill(1),signed=a.whole_brain.signed,fmt=a.pFormat;
+    const toP=v=>fmt==='p'?v:fmt==='-log10p'?Math.pow(10,-v):fmt==='mask'?(v>0?0:1):1-v;
+    for(const p of arr.slice(hasE?1:0))for(let i=0;i<NP;i++){const v=toP(p[i]);if(v<P[i])P[i]=v}   // several p files: most significant wins
+    if(hasE)for(let i=0;i<NP;i++)E[i]=signed?arr[0][i]:Math.abs(arr[0][i]);
+    else for(let i=0;i<NP;i++)E[i]=fmt==='mask'?(P[i]<1?1:0):Math.min(16,-Math.log10(Math.max(P[i],1e-16)));   // no effect map: colour by -log10 p
+    a.EFF[cid]=E;a.PV[cid]=P;
+  })();
+}
+const bundleCache={};
+function getBundle(code,dir){
+  dir=dir||CFG.bundle_dir;const key=dir+'/'+code;
+  if(bundleCache[key])return bundleCache[key];
+  if(MODE==='demo'){const fibers=demoBundleFibers[code]||[];const pos=[],start=[],len=[];
+    for(const f of fibers){start.push(pos.length/3);len.push(WB.len[f]);const a=WB.start[f]*3;for(let i=0;i<WB.len[f]*3;i++)pos.push(WB.ras[a+i])}
+    return bundleCache[key]=Promise.resolve({ras:new Float32Array(pos),start,len})}
+  const path=`${dir}/${code}.tck`;
+  return bundleCache[key]=fetchBuf(path).then(b=>parseTck(b,path));
+}
+
+// ======================================================================
+// 5. Demo data: four example tabs with simulated results
+// ======================================================================
+function buildDemo(){
+  function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+  const rng=mulberry32(20261113);
+  const gauss=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
+  const BIL={
+   AF:[[48,18,15],[45,-10,28],[40,-38,28],[52,-48,4],[55,-35,-8]],ATR:[[12,-18,6],[16,0,10],[22,20,14],[25,45,12]],
+   CG:[[8,38,2],[9,15,30],[9,-20,38],[10,-48,28],[20,-40,-10]],CST:[[32,-22,62],[24,-18,35],[18,-15,10],[10,-22,-15],[6,-30,-42]],
+   MLF:[[50,5,-18],[50,-20,-5],[45,-45,15],[38,-62,35]],FPT:[[25,22,45],[20,8,25],[17,-5,8],[12,-20,-15],[7,-28,-38]],
+   FX:[[22,-28,-16],[18,-38,4],[10,-30,16],[4,-5,14],[4,4,-2],[6,-6,-12]],ICP:[[8,-42,-52],[14,-48,-42],[22,-58,-34],[30,-62,-30]],
+   IFO:[[25,-88,6],[32,-55,0],[33,-22,-6],[28,5,-4],[24,30,2],[24,50,6]],ILF:[[30,-90,4],[38,-65,-4],[42,-38,-12],[42,-10,-22],[40,10,-30]],
+   OR:[[22,-25,0],[32,-38,4],[32,-62,6],[22,-88,6]],POPT:[[35,-58,48],[28,-40,30],[18,-22,8],[12,-24,-15],[7,-30,-36]],
+   SCP:[[12,-58,-28],[8,-45,-22],[4,-30,-14]],SLF_I:[[16,25,52],[18,-5,60],[18,-35,60],[16,-58,52]],
+   SLF_II:[[32,30,38],[34,0,42],[35,-30,42],[34,-58,40]],SLF_III:[[46,25,12],[48,5,20],[50,-20,28],[48,-40,32]],
+   STR:[[12,-18,6],[20,-18,25],[28,-20,45],[35,-22,62]],UF:[[22,42,-12],[28,22,-10],[32,8,-14],[36,10,-24],[38,18,-32]]
+  };
+  const TGT={FO:[22,40,-12],PREF:[25,55,15],PREM:[28,12,55],PREC:[35,-15,62],POSTC:[40,-32,58],PAR:[35,-60,45],OCC:[22,-90,6]};
+  const via=(a,b)=>[[...a],[(a[0]+b[0])/2+6,(a[1]+b[1])/2,(a[2]+b[2])/2+8],[...b]];
+  ['PREF','PREM','PREC','POSTC','PAR','OCC'].forEach(k=>BIL['T_'+k]=via([12,-18,6],TGT[k]));
+  ['FO','PREF','PREM','PREC','POSTC','PAR','OCC'].forEach(k=>BIL['ST_'+k]=via([20,6,4],TGT[k]));
+  const MID={
+   CA:[[-36,-2,-22],[-20,2,-12],[0,2,-6],[20,2,-12],[36,-2,-22]],CC_1:[[-20,40,-6],[-10,32,0],[0,28,2],[10,32,0],[20,40,-6]],
+   CC_2:[[-25,45,15],[-12,30,12],[0,24,12],[12,30,12],[25,45,15]],CC_3:[[-30,15,52],[-14,10,28],[0,8,24],[14,10,28],[30,15,52]],
+   CC_4:[[-34,-12,60],[-14,-10,32],[0,-10,26],[14,-10,32],[34,-12,60]],CC_5:[[-40,-30,58],[-15,-25,32],[0,-25,26],[15,-25,32],[40,-30,58]],
+   CC_6:[[-35,-55,45],[-14,-40,28],[0,-36,22],[14,-40,28],[35,-55,45]],CC_7:[[-24,-88,10],[-14,-60,12],[0,-40,12],[14,-60,12],[24,-88,10]],
+   MCP:[[-28,-65,-34],[-15,-40,-36],[0,-28,-34],[15,-40,-36],[28,-65,-34]]
+  };
+  const defs=[];for(const k in BIL){defs.push([k+'_left',BIL[k].map(p=>[-p[0],p[1],p[2]])],[k+'_right',BIL[k]])}for(const k in MID)defs.push([k,MID[k]]);
+  const pos=[],start=[],len=[];demoBundleFibers={};
+  const smooth=ctrl=>hasThree?new THREE.CatmullRomCurve3(ctrl.map(p=>new THREE.Vector3(...p)),false,'centripetal').getPoints(36).map(v=>[v.x,v.y,v.z]):ctrl;
+  for(const[code,pts]of defs){demoBundleFibers[code]=[];const nf=/^CC_/.test(code)?30:24;
+    for(let f=0;f<nf;f++){const ctrl=pts.map((p,i)=>{const s=(i===0||i===pts.length-1)?6:3;return[p[0]+gauss()*s,p[1]+gauss()*s,p[2]+gauss()*s]});
+      const sp=smooth(ctrl);demoBundleFibers[code].push(start.length);start.push(pos.length/3);len.push(sp.length);sp.forEach(p=>pos.push(...p))}}
+  demoBundleFibers.CC=[1,2,3,4,5,6,7].flatMap(i=>demoBundleFibers['CC_'+i]);
+  WB={ras:new Float32Array(pos),start:Int32Array.from(start),len:Int32Array.from(len)};
+  const NP=WB.ras.length/3;
+  const FAM=['AF','CG','IFO','ILF','MLF','SLF_I','SLF_II','SLF_III','UF','CC','CC_1','CC_2','CC_3','CC_4','CC_5','CC_6','CC_7','CA','ATR','STR','CST','FPT','POPT','OR','FX',
+    'T_PREF','T_PREM','T_PREC','T_POSTC','T_PAR','T_OCC','ST_FO','ST_PREF','ST_PREM','ST_PREC','ST_POSTC','ST_PAR','ST_OCC','ICP','MCP','SCP'];
+  const mid=new Set(['CC','CC_1','CC_2','CC_3','CC_4','CC_5','CC_6','CC_7','CA','MCP']);
+  const BUN=FAM.flatMap(b=>mid.has(b)?[b]:[b+'_left',b+'_right']);
+  const erf=x=>{const s=Math.sign(x);x=Math.abs(x);const t=1/(1+0.3275911*x);return s*(1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x))};
+  const pz=z=>2*(1-0.5*(1+erf(Math.abs(z)/Math.SQRT2)));
+  const fdr=(S)=>{const ps=Object.entries(S).map(([c,s])=>[s.p,c]).sort((a,b)=>a[0]-b[0]);let q=1;for(let i=ps.length-1;i>=0;i--){q=Math.min(q,ps[i][0]*ps.length/(i+1));S[ps[i][1]].q=q}};
+  const field=(blobs,cap)=>{const E=new Float32Array(NP);
+    for(let f=0;f<WB.start.length;f++){const k0=WB.start[f],m=1+gauss()*0.12;
+      for(let i=0;i<WB.len[f];i++){const k=k0+i,x=WB.ras[k*3],y=WB.ras[k*3+1],z=WB.ras[k*3+2];let s=0;
+        for(const b of blobs){const dx=x-b[0],dy=y-b[1],dz=z-b[2];s+=b[4]*Math.exp(-(dx*dx+dy*dy+dz*dz)/(2*b[3]*b[3]))}
+        E[k]=Math.max(-cap,Math.min(cap,s*m))}}return E};
+  const bundleMean=(E,c)=>{let s=0,n=0;for(const f of demoBundleFibers[c])for(let i=0;i<WB.len[f];i+=3){s+=E[WB.start[f]+i];n++}return s/n};
+  const base={};BUN.forEach(c=>base[c]=0.45+rng()*0.55);
+  const GROUPS=[['bvFTD',35],['SD',20],['PNFA',18]];
+  const AT={bvFTD:[[20,45,0,25,22],[-20,45,0,25,22],[38,10,-25,20,18],[-38,10,-25,20,18],[0,30,10,20,16],[35,10,0,18,10],[-35,10,0,18,10]],
+    SD:[[-38,10,-28,22,26],[-45,-15,-15,20,14],[38,10,-28,18,9],[-22,35,-15,16,10]],
+    PNFA:[[-45,18,15,20,20],[-25,10,50,20,14],[-45,-15,20,20,10],[45,18,15,15,6],[0,10,25,15,8]]};
+  const scaleBlobs=(B,k,r)=>B.map(b=>[b[0],b[1],b[2],b[3]*r,b[4]*k]);
+  const ref={id:'Controls',label:'Controls',n:40};
+  // --- tab 1: baseline atrophy, pairwise whole-brain comparisons; TractSeg tracts as reference outlines ---
+  const PPA={'nfvPPA-lt-HC':[[-45,18,15,20,22],[-25,10,50,20,15],[-45,-15,20,20,11],[0,10,25,15,8]],
+    'lvPPA-lt-HC':[[-48,-48,15,22,22],[-40,-30,-5,20,15],[-30,-65,35,20,12],[45,-48,15,15,6]],
+    'lvPPA-lt-nfvPPA':[[-48,-52,18,18,13],[-35,-65,35,16,9]]};
+  const t1=buildAnalysis({id:'baseline-atrophy',label:'Baseline atrophy',
+    description:'Whole-brain differences in FDC between groups at the first scan. Tick TractSeg tracts on the right to outline them for anatomical reference.',
+    reference:null,default_view:'fixel',
+    contrasts:[{id:'nfvPPA-lt-HC',label:'nfvPPA < HC',effect_tsf:'demo',p_tsf:['demo']},{id:'lvPPA-lt-HC',label:'lvPPA < HC',effect_tsf:'demo',p_tsf:['demo']},
+      {id:'lvPPA-lt-nfvPPA',label:'lvPPA < nfvPPA',effect_tsf:'demo',p_tsf:['demo']},{id:'nfvPPA-lt-lvPPA',label:'nfvPPA < lvPPA',result:'non-significant'}],
+    whole_brain:{effect_label:'FDC reduction (%)',effect_max:30},
+    tracts:{mode:'reference',show_by_default:['AF_left','IFO_left']}},0);
+  for(const cid in PPA){const E=field(PPA[cid],30);t1.EFF[cid]=E;const P=new Float32Array(NP);for(let i=0;i<NP;i++)P[i]=Math.exp(-Math.pow(E[i]/4,2));t1.PV[cid]=P}
+  // --- tab 2: longitudinal atrophy, change WITHIN each group: SwE significance maps (-log10 p) + descriptive tract SPC ---
+  const t2=(()=>{const GR=[['nfvPPA',PPA['nfvPPA-lt-HC']],['lvPPA',PPA['lvPPA-lt-HC']]];
+    const a=buildAnalysis({id:'longitudinal-atrophy',label:'Longitudinal atrophy',
+      description:'Change in FDC over time within each group. Whole brain: SwE longitudinal models (TFCE, FWE-corrected at p < .01). Tracts: descriptive annual percentage change (SPC) in mean FDC, no statistical test.',
+      reference:null,default_view:'fixel',_demoTracts:true,
+      contrasts:GR.map(([g])=>({id:g,label:g,p_tsf:['demo']})),
+      whole_brain:{effect_label:'Significant decline',effect_max:1,p_format:'mask',method_label:'SwE, TFCE, FWE',threshold_label:'p<sub>FWE</sub> &lt; .01'},
+      tracts:{descriptive:true,title:'Annual change in mean FDC in {n} TractSeg bundles',stat_label:'Mean SPC (%/yr)',stat_short:'%/yr',stat_max:3,signed:true,
+        description:'Mean symmetrised percent change (SPC) per year in tract mean FDC, ± SD across participants. Descriptive; no statistical test.',
+        negative_label:'decline',positive_label:'increase'}},1);
+    a.BUNDLES=BUN.slice();BUN.forEach(c=>a.MEANS[c]={});
+    for(const[g,B]of GR){const E=field(scaleBlobs(B,0.14,1.3),4);   // -log10 p
+      const P=new Float32Array(NP);for(let i=0;i<NP;i++)P[i]=E[i]>2?0:1;a.PV[g]=P;            // mask: -log10 p > 2, i.e. p < .01
+      const L=new Float32Array(NP);for(let i=0;i<NP;i++)L[i]=P[i]<1?1:0;a.EFF[g]=L;
+      const S={};for(const c of BUN){const m=-(0.4+bundleMean(E,c)*0.55+Math.abs(gauss())*0.2),sd=0.6+Math.abs(gauss())*0.5;
+        S[c]={d:m,sd,lo:m-sd,hi:m+sd,q:NaN};a.MEANS[c][g]={m,lo:m-sd,hi:m+sd}}
+      a.STATS[g]=S;a.sdBars=true}
+    return a})();
+  // --- tab 3: baseline association, group x speech measure, whole brain (t-values) with tract reference ---
+  const MEAS=['Word duration W–S','Word duration S–W','PVI W–S','PVI S–W'];
+  const MBL={'Word duration W–S':[[-45,18,15,20,4.5],[-30,10,45,18,3.2]],'Word duration S–W':[[-40,-10,25,22,4]],'PVI W–S':[[-45,18,10,18,3.8],[-12,20,30,14,2.8]],'PVI S–W':null};
+  const t3=buildAnalysis({id:'baseline-association',label:'Baseline association',
+    description:'Fixel-wise association between FDC and four speech measures at the first scan, within each group. Pick a group and a measure. Tick TractSeg tracts on the right to outline them for anatomical reference.',
+    reference:null,default_view:'fixel',selector_labels:{group:'Group',measure:'Speech measure'},
+    contrasts:[...MEAS.map((m,k)=>({id:'nfvPPA-m'+k,group:'nfvPPA',measure:m,...(MBL[m]?{effect_tsf:'demo',p_tsf:['demo']}:{result:'non-significant'})})),
+      ...MEAS.map((m,k)=>({id:'lvPPA-m'+k,group:'lvPPA',measure:m,result:'non-significant'}))],
+    whole_brain:{effect_label:'t-value',effect_max:5,signed:true,negative_label:'negative association',positive_label:'positive association'},
+    tracts:{mode:'reference',show_by_default:['AF_left']}},2);
+  MEAS.forEach((m,k)=>{if(!MBL[m])return;const E=field(MBL[m],6);t3.EFF['nfvPPA-m'+k]=E;const P=new Float32Array(NP);for(let i=0;i<NP;i++)P[i]=Math.exp(-Math.pow(E[i]/1.1,2));t3.PV['nfvPPA-m'+k]=P});
+  const AS={bvFTD:[[20,45,0,28,0.55],[-20,45,0,28,0.5],[0,30,10,20,0.3]],SD:[[-38,10,-28,24,0.6],[-45,-15,-15,20,0.35]],PNFA:[[-45,18,15,22,0.55],[-25,10,50,20,0.3],[30,-40,30,15,-0.35]]};
+  // --- tab 4: longitudinal association, tract level: r (95% CI) per ROI, group x speech measure ---
+  const ROI39=['ST_PREC_left','ST_POSTC_left','T_PREC_left','CC_5','ST_PAR_left','T_PREM_right','SLF_II_left','T_POSTC_left','ST_PREM_left','STR_left',
+    'T_PREM_left','T_PAR_left','CC_4','POPT_left','CC_3','ST_PREM_right','CST_left','CG_right','T_POSTC_right','SLF_III_left','T_PREC_right','ST_POSTC_right',
+    'ST_PREC_right','T_PAR_right','ST_PAR_right','CG_left','FPT_left','SLF_II_right','AF_left','STR_right','POPT_right','FPT_right','CST_right','SLF_III_right',
+    'AF_right','MCP','ICP_left','SCP_right','SCP_left'];
+  const t4=buildAnalysis({id:'longitudinal-association',label:'Longitudinal association',
+    description:'Correlation between yearly change in tract mean FDC and yearly change in each speech measure, within each group. Tract-level analysis of 39 TractSeg ROIs.',
+    reference:null,default_view:'bundles',_demoTracts:true,selector_labels:{group:'Group',measure:'Speech measure'},
+    contrasts:['nfvPPA','lvPPA'].flatMap(g=>MEAS.map((m,k)=>({id:`${g}-m${k}`,group:g,measure:m,n:g==='nfvPPA'?22:14}))),
+    tracts:{title:'FDC change vs speech change in {n} TractSeg ROIs',stat_label:'Correlation (r)',stat_short:'r',stat_max:1,axis_range:[-1,1],signed:true,
+      sig_column:'p',q_label:'p',alpha:0.05,sig_levels:[0.05,0.01,0.001],colour_all:true,value_filter:true,method_label:'Pearson r',
+      description:'Correlation (95% CI) between yearly change in tract mean FDC and yearly change in the speech measure. Filled dots: p < .05.',
+      negative_label:'negative r',positive_label:'positive r'}},3);
+  t4.BUNDLES=ROI39.slice();ROI39.forEach(c=>t4.MEANS[c]={});
+  for(const c of t4.contrasts){const nf=c.group==='nfvPPA',k=+c.id.slice(-1),S={};
+    for(const roi of ROI39){const motor=/PREC|PREM|POSTC|SLF|AF|CST|FPT/.test(roi)&&/left|CC/.test(roi);
+      const r=Math.max(-0.95,Math.min(0.95,(nf&&motor?(k%2?0.5:-0.55):0)+gauss()*(nf?0.18:0.15))),z=Math.atanh(r),se=1/Math.sqrt(c.n-3);
+      S[roi]={d:r,lo:Math.tanh(z-1.96*se),hi:Math.tanh(z+1.96*se),q:nf?pz(z/se):Math.max(0.06,pz(z/se))}}
+    t4.STATS[c.id]=S}
+  ANALYSES=[t1,t2,t3,t4];
+  CFG=merge(DEFAULT_CONFIG,{subtitle:'Simulated example with four analyses. Replace with your own results (see GUIDE.md).'});
+}
+
+// ======================================================================
+// 6. Colour
+// ======================================================================
+const INF=[[252,255,164],[248,201,50],[251,155,6],[237,105,37],[207,68,70],[165,44,96],[120,28,109]];
+const COOL=[[206,240,255],[136,204,255],[78,148,245],[76,92,220],[94,58,178]];
+function ramp(R,t){t=Math.max(0,Math.min(1,t))*(R.length-1);const i=Math.min(R.length-2,Math.floor(t)),f=t-i,a=R[i],b=R[i+1];
+  return[(a[0]+(b[0]-a[0])*f)/255,(a[1]+(b[1]-a[1])*f)/255,(a[2]+(b[2]-a[2])*f)/255]}
+const inferno=t=>ramp(INF,t);
+const css=c=>`rgb(${c.map(v=>Math.round(v*255)).join(',')})`;
+const T0=0.15;                              // skip the palest end so small effects stay visible on white
+const INCREASE=[0.36,0.62,0.92];            // significant effects opposite to the expected direction
+const MASKCOL=[0.93,0.41,0.15];             // single colour for already-thresholded (mask) maps
+function effectColor(v,max,signed,t0){      // used for streamlines, bundles and forest-plot dots
+  const t=Math.min(1,Math.abs(v)/max);
+  if(signed)return v<0?ramp(COOL,0.1+0.9*t):inferno(T0+(1-T0)*t);
+  return v<0?INCREASE:inferno(t0+(1-t0)*t);
+}
+function gradientCss(signed,t0){const st=[];
+  if(signed){for(let i=8;i>=1;i--)st.push(css(ramp(COOL,0.1+0.9*i/8)));for(let i=0;i<=8;i++)st.push(css(inferno(T0+(1-T0)*i/8)))}
+  else for(let i=0;i<=8;i++)st.push(css(inferno(t0+(1-t0)*i/8)));
+  return`linear-gradient(90deg,${st.join(',')})`}
+const tractColor=d=>effectColor(d,+A().tracts.stat_max||2,A().tracts.signed,T0);
+
+// ======================================================================
+// 7. 3D viewer
+// ======================================================================
+const cbox=$('cbox'),vmsg=$('vmsg');
+const V={ready:false};
+function showViewerMsg(text,err){vmsg.textContent=text;vmsg.classList.toggle('err',!!err);vmsg.hidden=false}
+function showNote(text){$('ns-note').textContent=text;$('ns-note').hidden=false}
+function hideNote(){$('ns-note').hidden=true}
+const T=(x,y,z)=>[x,z,-y];
+function toThree(ras){const o=new Float32Array(ras.length);for(let i=0;i<ras.length;i+=3){o[i]=ras[i];o[i+1]=ras[i+2];o[i+2]=-ras[i+1]}return o}
+
+function initViewer(initialTracks){
+  if(!hasThree)throw new Error('The 3D library did not load. Put the lib folder (three.min.js and OrbitControls.js) next to index.html, or connect to the internet so it can load from a CDN.');
+  const renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));renderer.setClearColor(0x070b0f,1);
+  cbox.insertBefore(renderer.domElement,cbox.firstChild);
+  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(32,1,1,5000);
+  const controls=new THREE.OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true;controls.dampingFactor=0.08;controls.autoRotateSpeed=1.2;
+  // camera framed on the first tractogram shown (all templates are near the same origin)
+  const W0=initialTracks&&initialTracks.ras.length?toThree(initialTracks.ras):null;
+  const box=W0?new THREE.Box3().setFromBufferAttribute(new THREE.BufferAttribute(W0,3)):new THREE.Box3(new THREE.Vector3(-70,-50,-75),new THREE.Vector3(70,85,110));
+  const center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3()).length();
+  controls.target.copy(center);controls.minDistance=size*0.6;controls.maxDistance=size*4;
+  // geometry for each tractogram, built once and swapped in when a tab with that tractogram is shown
+  const EMPTY=new THREE.BufferGeometry();
+  function geomFor(T){if(T._g)return T._g;const P=toThree(T.ras);let NSEG=0;for(let f=0;f<T.len.length;f++)NSEG+=Math.max(0,T.len[f]-1);
+    const ctxG=new THREE.BufferGeometry(),a=new Float32Array(NSEG*6);let o=0;
+    for(let f=0;f<T.len.length;f++)for(let i=0;i<T.len[f]-1;i++){const k=T.start[f]+i;for(let j=0;j<6;j++)a[o++]=P[k*3+j]}
+    ctxG.setAttribute('position',new THREE.BufferAttribute(a,3));
+    const sigG=new THREE.BufferGeometry();
+    sigG.setAttribute('position',new THREE.BufferAttribute(new Float32Array(NSEG*6),3));
+    sigG.setAttribute('color',new THREE.BufferAttribute(new Float32Array(NSEG*6),3));sigG.setDrawRange(0,0);
+    return T._g={P,NSEG,ctxG,sigG}}
+  const ctxMat=new THREE.LineBasicMaterial({color:0x7d8f9c,transparent:true,opacity:0.14,depthWrite:false});
+  const ctx=new THREE.LineSegments(EMPTY,ctxMat);scene.add(ctx);
+  const sigMat=new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.95});
+  const sig=new THREE.LineSegments(EMPTY,sigMat);scene.add(sig);
+  let W=null,P=null,NSEG=0,sigG=EMPTY;
+  V.useTracks=T=>{if(T===W)return;W=T||null;
+    if(W){const g=geomFor(W);P=g.P;NSEG=g.NSEG;sigG=g.sigG;ctx.geometry=g.ctxG;sig.geometry=sigG}
+    else{P=null;NSEG=0;sigG=EMPTY;ctx.geometry=EMPTY;sig.geometry=EMPTY}};
+  const selMat=new THREE.LineBasicMaterial({color:0x9eedf2,transparent:true,opacity:1});let selObj=null;
+  // reference tract outlines (anatomical context only)
+  const refMat=new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.55,depthWrite:false});
+  const refObj=new THREE.LineSegments(new THREE.BufferGeometry(),refMat);refObj.visible=false;scene.add(refObj);
+  let refTok=0;
+  V.renderRefs=async()=>{const tok=++refTok,a=A();
+    if(!a.tractRef||state.mode!=='fixel'){refObj.visible=false;return}
+    const codes=a.REF_BUNDLES.filter(c=>state.refShown.has(c));
+    const res=await Promise.all(codes.map(c=>getBundle(c,bundleDir(a)).then(b=>[c,b],()=>[c,null])));
+    if(tok!==refTok||a!==A())return;
+    const items=[];
+    for(const[c,b]of res){if(!b){markRefMissing(c);continue}
+      const col=new THREE.Color(REF_COLS[a.REF_BUNDLES.indexOf(c)%REF_COLS.length]);items.push({b,color:[col.r,col.g,col.b]})}
+    refObj.geometry.dispose();refObj.geometry=items.length?packBundles(items):new THREE.BufferGeometry();refObj.visible=true};
+  const bunSigMat=new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:1});
+  const bunNsMat=new THREE.LineBasicMaterial({color:0x6b7c88,transparent:true,opacity:0.22,depthWrite:false});
+  const bunSig=new THREE.LineSegments(new THREE.BufferGeometry(),bunSigMat),bunNs=new THREE.LineSegments(new THREE.BufferGeometry(),bunNsMat);
+  bunSig.visible=bunNs.visible=false;scene.add(bunNs);scene.add(bunSig);
+  // glass brain
+  const glassMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uColor:{value:new THREE.Color(0x9fb8c8)},uOp:{value:+$('opt-glass-op').value}},
+    vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+    fragmentShader:'uniform vec3 uColor;uniform float uOp;varying vec3 vN;varying vec3 vV;void main(){float f=pow(1.0-abs(dot(normalize(vN),normalize(vV))),2.6);gl_FragColor=vec4(uColor,f*uOp);}'});
+  const glass=new THREE.Group();scene.add(glass);
+  V.addGlassMesh=(rasVerts,index)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(toThree(rasVerts),3));
+    if(index)g.setIndex(index);g.computeVertexNormals();const m=new THREE.Mesh(g,glassMat);m.renderOrder=5;m.visible=false;glass.add(m);return m};
+  V.showGlassMesh=m=>glass.children.forEach(c=>c.visible=c===m);   // one glass brain at a time (tabs can have their own)
+  V.addDemoGlass=()=>{const blob=(c,s,deform)=>{const g=new THREE.SphereGeometry(1,64,48),a=g.attributes.position;
+      for(let i=0;i<a.count;i++){let x=a.getX(i),y=a.getY(i),z=a.getZ(i);if(deform)[x,y,z]=deform(x,y,z);a.setXYZ(i,x*s[0],y*s[1],z*s[2])}
+      g.computeVertexNormals();const m=new THREE.Mesh(g,glassMat);m.position.set(...c);m.renderOrder=5;glass.add(m)};
+    [-1,1].forEach(sd=>{blob(T(sd*31,-15,16),[34,52,82],(x,y,z)=>{if(x*sd<0)x*=0.55;if(y<-0.3)y=-0.3+(y+0.3)*0.7;if(z<-0.6&&y>0)y*=0.9;return[x,y,z]});
+      blob(T(sd*41,-2,-20),[19,19,40],null)});blob(T(0,-70,-32),[46,19,26],null);blob(T(0,-28,-38),[10,24,11],null)};
+  // whole-brain result for the current tab and contrast
+  V.renderSig=()=>{const a=A(),E=a.EFF[state.contrast],PP=a.PV[state.contrast];
+    if(!E||!W||E.length!==P.length/3){sigG.setDrawRange(0,0);$('sig-frac').textContent='';return}
+    const pa=sigG.attributes.position.array,ca=sigG.attributes.color.array,thr=state.pthr,max=+a.whole_brain.effect_max||1,sg=a.whole_brain.signed;let o=0,cnt=0;
+    const maskOnly=a.pFormat==='mask'&&!(a.contrasts.find(x=>x.id===state.contrast)||{}).effect_tsf;   // thresholded map: one colour
+    for(let f=0;f<W.len.length;f++)for(let i=0;i<W.len[f]-1;i++){const k=W.start[f]+i;if(!(PP[k]<thr&&PP[k+1]<thr))continue;cnt++;
+      for(const kk of[k,k+1]){pa[o]=P[kk*3];pa[o+1]=P[kk*3+1];pa[o+2]=P[kk*3+2];const c=maskOnly?MASKCOL:effectColor(E[kk],max,sg,0);ca[o]=c[0];ca[o+1]=c[1];ca[o+2]=c[2];o+=3}}
+    sigG.setDrawRange(0,o/3);sigG.attributes.position.needsUpdate=true;sigG.attributes.color.needsUpdate=true;sigG.computeBoundingSphere();
+    $('sig-frac').textContent=`${(100*cnt/Math.max(1,NSEG)).toFixed(1)}% of streamline segments`;
+    // nothing passes: same note as a non-significant comparison at p < .05, a softer one at stricter thresholds
+    if(cnt===0)showNote(state.pthr>=0.0499?a.whole_brain.nonsig_message:'No streamlines pass this threshold.');else hideNote()};
+  function packBundles(items){let n=0;for(const it of items)for(const l of it.b.len)n+=Math.max(0,l-1);
+    const pos=new Float32Array(n*6),col=new Float32Array(n*6);let o=0;
+    for(const{b,color}of items){const p=toThree(b.ras);let cur=0;
+      for(let f=0;f<b.len.length;f++){const s=b.start?b.start[f]:cur;
+        for(let i=0;i<b.len[f]-1;i++){const k=s+i;for(let j=0;j<6;j++){pos[o+j]=p[k*3+j];if(color)col[o+j]=color[j%3]}o+=6}cur+=b.len[f]}}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));if(items.some(i=>i.color))g.setAttribute('color',new THREE.BufferAttribute(col,3));return g}
+  let bunTok=0;
+  V.renderBundles=async()=>{const tok=++bunTok,a=A(),S=a.STATS[state.contrast]||{};
+    const shown=a.BUNDLES.filter(c=>S[c]&&state.shown.has(c)&&passFilters(a,S[c])),hasParts=shown.some(c=>/^CC_\d/.test(c));
+    // no significant tract at all for this comparison: same note as for whole-brain results
+    if(!a.tracts.descriptive&&!a.BUNDLES.some(c=>S[c]&&isSig(a,S[c])))showNote(a.whole_brain.nonsig_message);else hideNote();
+    const codes=shown.filter(c=>!(c==='CC'&&hasParts));
+    if(!codes.length){for(const obj of[bunSig,bunNs]){obj.geometry.dispose();obj.geometry=new THREE.BufferGeometry()}
+      $('sig-frac').textContent=a.BUNDLES.some(c=>S[c]&&state.shown.has(c))?'No tracts pass the current filters.':'No tracts selected. Tick tracts in the list to show them.';return}
+    $('sig-frac').textContent='Loading tracts…';
+    const res=await Promise.all(codes.map(c=>getBundle(c,bundleDir(a)).then(b=>[c,b],()=>[c,null])));
+    if(tok!==bunTok||state.mode!=='bundles'||a!==A())return;
+    const sigItems=[],nsItems=[];let missing=0;
+    for(const[c,b]of res){if(!b){missing++;continue}const s=S[c];
+      if(isSig(a,s)&&Number.isFinite(s.d))sigItems.push({b,color:tractColor(s.d)});
+      else if(a.tracts.colour_all&&Number.isFinite(s.d))nsItems.push({b,color:tractColor(s.d),coloured:true});else nsItems.push({b,color:null})}
+    const colNs=nsItems.filter(i=>i.coloured);if(colNs.length){sigItems.push(...colNs);nsItems.splice(0,nsItems.length,...nsItems.filter(i=>!i.coloured))}
+    for(const[obj,items]of[[bunSig,sigItems],[bunNs,nsItems]]){obj.geometry.dispose();obj.geometry=packBundles(items)}
+    $('sig-frac').textContent=`${codes.length-missing} ${codes.length-missing===1?"tract":"tracts"} shown`+(a.tracts.descriptive?'':` · ${res.filter(([c,b])=>b&&isSig(a,S[c])).length} significant (${a.tracts.q_label} < ${String(a.tracts.alpha).replace(/^0/,'')})`)+(missing?` · ${missing} without a 3D file`:'')
+      +(hasParts&&shown.includes('CC')?' · whole CC hidden (CC_1–7 shown)':'')};
+  function applyDim(){const on=!!selObj,b=state.mode==='bundles';
+    sigMat.opacity=on?0.2:0.95;ctxMat.opacity=b?(on?0.03:0.07):(on?0.05:0.14);bunSigMat.opacity=on?0.3:1;bunNsMat.opacity=on?0.06:0.22}
+  V.setMode=m=>{const b=m==='bundles';sig.visible=!b;bunSig.visible=bunNs.visible=b;applyDim();
+    if(!b&&A().tractRef)V.renderRefs();else refObj.visible=false};
+  V.clearSig=()=>{if(sigG!==EMPTY)sigG.setDrawRange(0,0)};
+  V.setSelection=b=>{if(selObj){scene.remove(selObj);selObj.geometry.dispose();selObj=null}
+    if(b){let n=0;for(const l of b.len)n+=Math.max(0,l-1);const p=toThree(b.ras),a=new Float32Array(n*6);let o=0,cur=0;
+      for(let f=0;f<b.len.length;f++){const s=b.start?b.start[f]:cur;for(let i=0;i<b.len[f]-1;i++){const k=s+i;for(let j=0;j<6;j++)a[o++]=p[k*3+j]}cur+=b.len[f]}
+      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(a,3));selObj=new THREE.LineSegments(g,selMat);selObj.renderOrder=3;scene.add(selObj)}
+    applyDim()};
+  const D=size*1.25,VIEWS={L:[-D,D*0.08,-D*0.1],R:[D,D*0.08,-D*0.1],A:[0,D*0.08,-D],S:[0,D,D*0.08]};
+  V.setView=v=>{const p=VIEWS[v];camera.position.set(center.x+p[0],center.y+p[1],center.z+p[2]);controls.update()};
+  camera.position.set(center.x-D*0.83,center.y+D*0.33,center.z-D*0.44);controls.update();
+  V.spin=on=>controls.autoRotate=on;V.showGlass=on=>glass.visible=on;V.setGlassOpacity=v=>glassMat.uniforms.uOp.value=v;V.showCtx=on=>ctx.visible=on;
+  function resize(){const w=cbox.clientWidth,h=cbox.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+  new ResizeObserver(resize).observe(cbox);resize();
+  (function loop(){requestAnimationFrame(loop);controls.update();renderer.render(scene,camera)})();
+  V.ready=true;
+}
+
+// ======================================================================
+// 8. Tract list (forest plot) and detail panel
+// ======================================================================
+const NAMES={AF:'Arcuate fasciculus',ATR:'Anterior thalamic radiation',CA:'Anterior commissure',CC:'Corpus callosum (whole)',
+ CC_1:'Corpus callosum, rostrum',CC_2:'Corpus callosum, genu',CC_3:'Corpus callosum, rostral body',CC_4:'Corpus callosum, anterior midbody',
+ CC_5:'Corpus callosum, posterior midbody',CC_6:'Corpus callosum, isthmus',CC_7:'Corpus callosum, splenium',CG:'Cingulum',CST:'Corticospinal tract',
+ MLF:'Middle longitudinal fascicle',FPT:'Fronto-pontine tract',FX:'Fornix',ICP:'Inferior cerebellar peduncle',IFO:'Inferior fronto-occipital fasciculus',
+ ILF:'Inferior longitudinal fasciculus',MCP:'Middle cerebellar peduncle',OR:'Optic radiation',POPT:'Parieto-occipital pontine tract',
+ SCP:'Superior cerebellar peduncle',SLF_I:'Superior longitudinal fasciculus I',SLF_II:'Superior longitudinal fasciculus II',
+ SLF_III:'Superior longitudinal fasciculus III',STR:'Superior thalamic radiation',UF:'Uncinate fasciculus',
+ T_PREF:'Thalamo-prefrontal',T_PREM:'Thalamo-premotor',T_PREC:'Thalamo-precentral',T_POSTC:'Thalamo-postcentral',T_PAR:'Thalamo-parietal',T_OCC:'Thalamo-occipital',
+ ST_FO:'Striato-fronto-orbital',ST_PREF:'Striato-prefrontal',ST_PREM:'Striato-premotor',ST_PREC:'Striato-precentral',ST_POSTC:'Striato-postcentral',ST_PAR:'Striato-parietal',ST_OCC:'Striato-occipital'};
+const FAMILIES=[['Association',['AF','CG','IFO','ILF','MLF','SLF_I','SLF_II','SLF_III','UF']],['Commissural',['CC','CC_1','CC_2','CC_3','CC_4','CC_5','CC_6','CC_7','CA']],
+ ['Projection',['ATR','STR','CST','FPT','POPT','OR','FX']],['Thalamic',['T_PREF','T_PREM','T_PREC','T_POSTC','T_PAR','T_OCC']],
+ ['Striatal',['ST_FO','ST_PREF','ST_PREM','ST_PREC','ST_POSTC','ST_PAR','ST_OCC']],['Cerebellar',['ICP','MCP','SCP']]];
+// The 72 TractSeg bundles, used as the tract-reference list unless a tab lists its own ("tracts.bundles").
+const MIDLINE=new Set(['CA','CC','CC_1','CC_2','CC_3','CC_4','CC_5','CC_6','CC_7','MCP']);
+const TRACTSEG72=FAMILIES.flatMap(f=>f[1]).flatMap(b=>MIDLINE.has(b)?[b]:[b+'_left',b+'_right']);
+// Outline colours for reference tracts: cool, light hues that stay distinct from the warm results scale.
+const REF_COLS=['#7fe3ea','#8fb8ff','#9be38f','#d0b4ff','#f2f5f7','#5fd4b0','#b9e3ff','#c8f08a','#a7a7ff','#e0c9ff','#66c2ff','#b2f2d6'];
+const baseOf=c=>c.replace(/_(left|right)$/,'');
+function niceName(c){const m=c.match(/^(.*)_(left|right)$/);const n=NAMES[m?m[1]:c];return n?(m?`${n} · ${m[2]}`:n):c}
+const fmt=(x,n=2)=>Number.isFinite(x)?(x<0?'−':'')+Math.abs(x).toFixed(n):'–';
+const fmtM=x=>Number.isFinite(x)?(x<0?'−':'')+Math.abs(x).toPrecision(3):'–';
+const fmtQ=q=>!Number.isFinite(q)?'–':q<0.001?'<.001':q.toFixed(3).replace(/^0/,'');
+const isSig=(a,s)=>!!a.tracts.descriptive||s.q<a.tracts.alpha;   // descriptive tabs: every tract is shown in colour
+const statShort=()=>A().tracts.stat_short||A().tracts.stat_label.replace(/^Cohen's /,'');
+let AX={min:-0.5,max:3.5,ticks:[0,1,2,3]};
+function computeAxis(){const ar=A().tracts.axis_range;
+  if(Array.isArray(ar)&&ar.length===2){const[lo,hi]=ar.map(Number),span=hi-lo,step=[0.1,0.2,0.25,0.5,1,2,5,10].find(x=>span/x<=5)||20,ticks=[];
+    for(let t=Math.ceil(lo/step-1e-9)*step;t<=hi+1e-9;t+=step)ticks.push(+t.toFixed(2));AX={min:lo,max:hi,ticks};return}
+  const S=A().STATS[state.contrast]||{};let lo=0,hi=A().tracts.signed?0:1;
+  for(const c in S){const s=S[c];if(Number.isFinite(s.lo))lo=Math.min(lo,s.lo);if(Number.isFinite(s.hi))hi=Math.max(hi,s.hi);if(Number.isFinite(s.d)){lo=Math.min(lo,s.d);hi=Math.max(hi,s.d)}}
+  const span=(hi-lo)||1,step=[0.1,0.2,0.25,0.5,1,2,5,10].find(s=>span/s<=5)||20;const min=Math.floor(lo/step)*step-step*0.25,max=Math.ceil(hi/step)*step+step*0.25;
+  const ticks=[];for(let t=Math.ceil(min/step)*step;t<=max+1e-9;t+=step)ticks.push(+t.toFixed(2));AX={min,max,ticks}}
+const xp=d=>100*(Math.max(AX.min,Math.min(AX.max,d))-AX.min)/(AX.max-AX.min);
+// ---- tract filters: significance level ("Show") and value slider ----
+// direction buttons (Both / Negative / Positive): shown for signed results with the value slider, unless set
+const dirOn=a=>a.hasTracts&&!a.tracts.descriptive&&(a.tracts.direction_filter??(!!a.tracts.signed&&!!a.tracts.value_filter));
+const curDir=a=>dirOn(a)?state.dir:'both';
+function passFilters(a,s){
+  if(state.sigLevel&&!(s.q<state.sigLevel))return false;
+  const dir=curDir(a),d=s.d;
+  if(dir==='neg'&&!(d<0))return false;
+  if(dir==='pos'&&!(d>0))return false;
+  // value slider: only the side(s) being shown count
+  if(a.tracts.value_filter&&Number.isFinite(d)){
+    if(dir==='neg'&&!(d<=state.vf.neg))return false;
+    if(dir==='pos'&&!(d>=state.vf.pos))return false;
+    if(dir==='both'&&!(d<=state.vf.neg||d>=state.vf.pos))return false}
+  return true;
+}
+function updateVfText(){const{neg,pos}=state.vf,sh=statShort(),f=v=>fmt(v,2),dir=curDir(A());
+  // the slider half that doesn't apply to the chosen direction is switched off
+  $('vf-neg').disabled=dir==='pos';$('vf-pos').disabled=dir==='neg';$('vf-link').disabled=dir!=='both';
+  if(dir==='neg'){$('vf-text').textContent=neg===0?`Showing all negative ${sh}`:`Showing ${sh} ≤ ${f(neg)}`;return}
+  if(dir==='pos'){$('vf-text').textContent=pos===0?`Showing all positive ${sh}`:`Showing ${sh} ≥ ${f(pos)}`;return}
+  const parts=[];
+  if(neg===0&&pos===0){$('vf-text').textContent=`Showing all ${sh} values`;return}
+  if(neg>-1)parts.push(`${sh} ≤ ${f(neg)}`);if(pos<1)parts.push(`${sh} ≥ ${f(pos)}`);
+  $('vf-text').textContent=parts.length?`Showing ${parts.join(' or ')}`:'Showing only ±1'}
+function renderDirButtons(){const a=A(),on=dirOn(a),sh=statShort();$('dir-tools').hidden=!on;if(!on)return;
+  const lab={both:'Both',neg:`Negative (${sh} < 0)`,pos:`Positive (${sh} > 0)`};
+  document.querySelectorAll('#dir-buttons button').forEach(b=>{b.textContent=lab[b.dataset.dir];b.setAttribute('aria-pressed',b.dataset.dir===state.dir)})}
+let filtRaf=0;
+function filtersChanged(){if(filtRaf)return;filtRaf=requestAnimationFrame(()=>{filtRaf=0;
+    const a=A(),s=state.sel&&(a.STATS[state.contrast]||{})[state.sel];if(s&&!passFilters(a,s)){select(null);if(V.ready&&state.mode==='bundles')V.renderBundles();return}   // selected tract now hidden by the filters
+    renderList();if(V.ready&&state.mode==='bundles')V.renderBundles()})}
+const FAM_CODES={};
+function renderList(){
+  const a=A(),list=$('list');
+  if(!a.hasTracts){list.innerHTML='';return}
+  const S=a.STATS[state.contrast]||{};computeAxis();
+  const vis=state.mode==='bundles',alpha=a.tracts.alpha;
+  const head=`<div class="list-head"><span>Tract</span><div class="axis">${AX.ticks.map(t=>`<span style="left:${xp(t)}%">${String(t).replace('-','−')}</span>`).join('')}</div><span style="text-align:right">${statShort()}</span></div>`;
+  const row=c=>{const s=S[c];if(!s)return'';const sigv=isSig(a,s);if(!passFilters(a,s))return'';
+    const ci=Number.isFinite(s.lo)&&Number.isFinite(s.hi)?`<span class="ci" style="left:${xp(s.lo)}%;width:${xp(s.hi)-xp(s.lo)}%"></span>`:'';
+    const box=vis?`<input type="checkbox" class="vis" data-c="${c}" aria-label="Show ${c} in the 3D view"${state.shown.has(c)?' checked':''}>`:'';
+    return `<div class="rwrap">${box}<button class="row${sigv?'':' ns'}" data-c="${c}" aria-pressed="${state.sel===c}" title="${niceName(c)}"><span class="nm">${c}</span>
+      <span class="fp"><span class="zero" style="left:${xp(0)}%"></span>${ci}<span class="pt" style="left:${xp(s.d)}%;background:${css(tractColor(s.d))}"></span></span>
+      <span class="dv">${fmt(s.d)}</span></button></div>`};
+  const famHead=(fam,codes)=>{FAM_CODES[fam]=codes;
+    return `<div class="fam">${vis?`<input type="checkbox" class="fam-vis" data-fam="${fam}" aria-label="Show all ${fam.toLowerCase()} tracts in the 3D view">`:''}<span>${fam}</span></div>`};
+  for(const k in FAM_CODES)delete FAM_CODES[k];
+  let html=head;
+  if(state.sort==='anat'){const used=new Set();
+    for(const[fam,bases]of FAMILIES){const codes=a.BUNDLES.filter(c=>bases.includes(baseOf(c))).sort((x,y)=>bases.indexOf(baseOf(x))-bases.indexOf(baseOf(y))||x.localeCompare(y));
+      codes.forEach(c=>used.add(c));const rows=codes.map(row).join('');if(rows)html+=famHead(fam,codes.filter(c=>S[c]))+rows}
+    const restCodes=a.BUNDLES.filter(c=>!used.has(c)),rest=restCodes.map(row).join('');if(rest)html+=famHead('Other',restCodes.filter(c=>S[c]))+rest}
+  else html+=a.BUNDLES.filter(c=>S[c]).sort((x,y)=>(Math.abs(S[y].d)||0)-(Math.abs(S[x].d)||0)).map(row).join('');
+  if(!a.BUNDLES.some(c=>S[c]&&passFilters(a,S[c])))html+=`<div class="fam">No tracts pass the current filters</div>`;
+  list.classList.toggle('with-vis',vis);list.innerHTML=html;updateVisUI();
+}
+function updateVisUI(){
+  const a=A(),S=a.STATS[state.contrast]||{},avail=a.BUNDLES.filter(c=>S[c]),n=avail.filter(c=>state.shown.has(c)).length;
+  $('vis-count').textContent=`${n} of ${avail.length} shown in 3D`;$('vis-all').disabled=n===avail.length;$('vis-none').disabled=n===0;
+  document.querySelectorAll('#list .fam-vis').forEach(b=>{const codes=FAM_CODES[b.dataset.fam]||[],k=codes.filter(c=>state.shown.has(c)).length;
+    b.checked=codes.length>0&&k===codes.length;b.indeterminate=k>0&&k<codes.length});
+}
+// ---- reference tract list (tabs with tracts.mode = "reference") ----
+const REF_FAM={},REF_MISSING=new Set();
+const refMissing=c=>REF_MISSING.has(bundleDir(A())+'|'+c);
+function renderRefList(){
+  const a=A(),list=$('ref-list');for(const k in REF_FAM)delete REF_FAM[k];
+  const used=new Set();let html='';
+  const row=c=>{const i=a.REF_BUNDLES.indexOf(c),miss=refMissing(c);
+    return `<label class="ref-row${miss?' missing':''}" title="${niceName(c)}"><input type="checkbox" class="refvis" data-c="${c}"${state.refShown.has(c)?' checked':''}${miss?' disabled':''}>
+      <i class="sw" style="background:${REF_COLS[i%REF_COLS.length]}"></i><span class="nm">${c}</span><span class="full">${niceName(c)}</span></label>`};
+  for(const[fam,bases]of FAMILIES){const codes=a.REF_BUNDLES.filter(c=>bases.includes(baseOf(c)));if(!codes.length)continue;
+    codes.forEach(c=>used.add(c));REF_FAM[fam]=codes;
+    html+=`<div class="fam"><input type="checkbox" class="fam-ref" data-fam="${fam}" aria-label="Show all ${fam.toLowerCase()} tracts"><span>${fam}</span></div>`+codes.map(row).join('')}
+  const rest=a.REF_BUNDLES.filter(c=>!used.has(c));
+  if(rest.length){REF_FAM.Other=rest;html+=`<div class="fam"><input type="checkbox" class="fam-ref" data-fam="Other" aria-label="Show all other tracts"><span>Other</span></div>`+rest.map(row).join('')}
+  list.innerHTML=html;updateRefUI();
+}
+function updateRefUI(){
+  const a=A(),avail=a.REF_BUNDLES.filter(c=>!refMissing(c)),n=avail.filter(c=>state.refShown.has(c)).length;
+  $('ref-count').textContent=`${n} of ${avail.length} shown in 3D`;$('ref-all').disabled=n===avail.length;$('ref-none').disabled=n===0;
+  document.querySelectorAll('#ref-list .refvis').forEach(b=>b.checked=state.refShown.has(b.dataset.c));
+  document.querySelectorAll('#ref-list .fam-ref').forEach(b=>{const codes=(REF_FAM[b.dataset.fam]||[]).filter(c=>!refMissing(c)),k=codes.filter(c=>state.refShown.has(c)).length;
+    b.checked=codes.length>0&&k===codes.length;b.indeterminate=k>0&&k<codes.length});
+}
+function markRefMissing(c){if(refMissing(c))return;REF_MISSING.add(bundleDir(A())+'|'+c);state.refShown.delete(c);
+  const el=document.querySelector(`#ref-list .refvis[data-c="${c}"]`);if(el){el.checked=false;el.disabled=true;el.closest('.ref-row').classList.add('missing')}updateRefUI()}
+let refRaf=0;
+function refChanged(){updateRefUI();if(!refRaf)refRaf=requestAnimationFrame(()=>{refRaf=0;if(V.ready)V.renderRefs()})}
+let visRaf=0;
+function visChanged(){document.querySelectorAll('#list .vis').forEach(b=>b.checked=state.shown.has(b.dataset.c));updateVisUI();
+  if(!visRaf)visRaf=requestAnimationFrame(()=>{visRaf=0;if(V.ready&&state.mode==='bundles')V.renderBundles()})}
+function renderDetail(){
+  const a=A(),c=state.sel,detail=$('detail'),ov=$('ov-sel');
+  if(!a.hasTracts){detail.innerHTML='';ov.textContent='';return}
+  if(!c||!(a.STATS[state.contrast]||{})[c]){detail.innerHTML='<div class="d-empty">Select a tract below to see its details and highlight it in the 3D view.</div>';ov.textContent='';return}
+  const s=a.STATS[state.contrast][c],t=a.tracts;
+  const ids=[...(a.reference?[[a.reference.id,a.reference.label]]:[]),...a.contrasts.map(x=>[x.id,x.label])];
+  const ms=ids.map(([id,l])=>[id,l,(a.MEANS[c]||{})[id]]).filter(x=>x[2]&&Number.isFinite(x[2].m));
+  let means='';
+  if(ms.length){const vals=ms.flatMap(x=>[x[2].lo,x[2].hi,x[2].m]).filter(Number.isFinite);const lo=Math.min(...vals),hi=Math.max(...vals),pad=(hi-lo||1)*0.08;
+    const X=v=>100*(v-(lo-pad))/((hi+pad)-(lo-pad));const refId=a.reference&&a.reference.id;
+    means=`<div class="means">${ms.map(([id,l,m])=>`<div class="mrow${id===state.contrast?' on':''}${id===refId?' hc':''}"><span class="lab" title="${l}">${l}</span><span class="track">${Number.isFinite(m.lo)?`<span class="ci" style="left:${X(m.lo)}%;width:${X(m.hi)-X(m.lo)}%"></span>`:''}<span class="dot" style="left:${X(m.m)}%"></span></span><span class="val">${fmtM(m.m)}</span></div>`).join('')}</div>`}
+  const cells=Number.isFinite(s.sd)
+    ?[`<div><span>${t.stat_label}</span><b>${fmt(s.d)}</b></div>`,`<div><span>SD</span><b>${fmt(s.sd)}</b></div>`]
+    :[`<div><span>${t.stat_label}</span><b>${fmt(s.d)} [${fmt(s.lo)}, ${fmt(s.hi)}]</b></div>`];
+  if(Number.isFinite(s.pct))cells.push(`<div><span>${t.change_label}</span><b>${fmt(-s.pct,1)}%</b></div>`);
+  if(!t.descriptive)cells.push(`<div><span>${t.q_label}</span><b>${fmtQ(s.q)}</b></div>`);
+  else cells.push(`<div><span>Test</span><b>descriptive</b></div>`);
+  detail.innerHTML=`<div class="d-top"><div><div class="d-name">${niceName(c)}</div><div class="d-code">${c}</div></div><button class="d-clear" id="clear">Clear selection</button></div>
+    <div class="d-stats">${cells.join('')}</div>${means}`;
+  $('clear').onclick=()=>select(null);
+  ov.innerHTML=state.mode==='bundles'?`<span class="sel-chip">${c}</span><br>${statShort()} ${fmt(s.d)}${t.descriptive?(Number.isFinite(s.sd)?` ± ${fmt(s.sd)} SD`:''):` · ${t.q_label} ${fmtQ(s.q)}`}`:`<span class="sel-chip">${c}</span><br>tract outline only`;
+}
+let selToken=0;
+function select(c){state.sel=c;renderList();renderDetail();
+  if(!V.ready)return;const tok=++selToken;
+  if(!c){V.setSelection(null);return}
+  getBundle(c,bundleDir(A())).then(b=>{if(tok===selToken)V.setSelection(b)}).catch(e=>{console.warn(e);if(tok===selToken){V.setSelection(null);$('ov-sel').innerHTML=`<span class="sel-chip">${c}</span><br>no tract file found`}});
+}
+
+// ======================================================================
+// 9. Switching tab, comparison and 3D view
+// ======================================================================
+function modeAvailable(m){const a=A();return m==='bundles'?a.hasTracts:a.hasWB&&tracksFor(a)!==null}
+function updateColourBar(){
+  const a=A(),b=state.mode==='bundles',sc=b?a.tracts:a.whole_brain,signed=!!sc.signed,max=+(b?sc.stat_max:sc.effect_max)||1;
+  const maskBar=!b&&a.pFormat==='mask'&&a.colourByP;
+  $('cbar').style.background=maskBar?css(MASKCOL):gradientCss(signed,b?T0:0);
+  $('cbar-ticks').hidden=maskBar;
+  $('cbar-label').textContent=b?`${a.tracts.stat_label} · tract level`:a.whole_brain.effect_label;
+  const fr=signed?[-1,-0.5,0,0.5,1]:[0,1/3,2/3,1];
+  const dp=fr.every(f=>Math.abs(f*max-Math.round(f*max))<1e-9)?0:max<1?2:1;
+  const tick=v=>Math.abs(v-Math.round(v))<1e-9?fmt(v,0):fmt(v,dp);
+  // a significance map without an effect map is coloured by -log10 p: label the scale in p-values
+  const pScale=!b&&a.colourByP&&a.pFormat!=='mask',pLab=v=>{const p=Math.pow(10,-v);return p>=1?'1':p>=0.0995?p.toFixed(1).replace(/^0/,''):p.toPrecision(1).replace(/^0/,'')};
+  $('cbar-ticks').innerHTML=fr.map((f,i,arr)=>`<span>${pScale?(i===0?'p 1':pLab(f*max)):(f===0?'0':tick(f*max))}${b&&!signed&&(i===arr.length-1)?'+':''}</span>`).join('');
+  $('cbar-ends').hidden=!signed;if(signed)$('cbar-ends').innerHTML=`<span>${sc.negative_label}</span><span>${sc.positive_label}</span>`;
+}
+function updateLabels(){
+  const a=A(),c=a.contrasts.find(x=>x.id===state.contrast),b=state.mode==='bundles';
+  $('ov-group').innerHTML=`${a.label} · ${b?'tract level, '+(a.tracts.descriptive&&a.tracts.method_label==='FDR'?'descriptive':a.tracts.method_label):'whole brain, '+a.whole_brain.method_label}<br>${c?contrastName(a,c):a.facets&&state.facet?`${state.facet.g} · ${state.facet.m}`:''}`;
+  $('thr-out').innerHTML=`${a.whole_brain.p_label} &lt; ${state.pthr.toFixed(3)}`;
+  const t=a.tracts;
+  $('bundle-note').innerHTML=t.descriptive
+    ?`Descriptive tract values: each tract coloured by its ${t.stat_label}. No statistical test. <i style="background:${css(ramp(COOL,0.7))}"></i>${t.negative_label} <i style="background:${css(inferno(0.6))}"></i>${t.positive_label}`
+    :t.signed
+    ?`Tract-level result: each tract coloured by its ${t.stat_label} where q &lt; ${t.alpha}. <i style="background:#6b7c88"></i>not significant <i style="background:${css(ramp(COOL,0.7))}"></i>${t.negative_label} <i style="background:${css(inferno(0.6))}"></i>${t.positive_label}`
+    :`Tract-level result: each tract coloured by its ${t.stat_label} where q &lt; ${t.alpha}. <i style="background:#6b7c88"></i>not significant <i style="background:${css(INCREASE)}"></i>opposite direction`;
+}
+// Two rows of buttons (group, then measure) for tabs whose contrasts have "group" and "measure"
+function renderFacets(){
+  const a=A(),f=state.facet,L=a.selector_labels||{},find=(g,m)=>a.contrasts.find(c=>c.group===g&&c.measure===m);
+  const btn=(attr,val,on,extra)=>`<button data-${attr}="${String(val).replace(/"/g,'&quot;')}" aria-pressed="${on}">${val}${extra||''}</button>`;
+  const gRow=a.groupList.map(g=>{const c=a.contrasts.find(x=>x.group===g&&x.n);return btn('fg',g,g===f.g,c?` <small>n=${c.n}</small>`:'')}).join('');
+  const noSig=c=>!c||c.nonsig||(a.hasTracts&&!a.hasWB&&!a.tracts.descriptive&&!Object.values(a.STATS[c.id]||{}).some(x=>isSig(a,x)));
+  const mRow=a.measureList.map(m=>{const c=find(f.g,m);return btn('fm',m,m===f.m,noSig(c)?' <small class="ns">n.s.</small>':'')}).join('');
+  $('facets').innerHTML=`<div class="facet-row"><span class="facet-label">${L.group||'Group'}</span><div class="seg" role="group" aria-label="${L.group||'Group'}">${gRow}</div></div>
+    <div class="facet-row"><span class="facet-label">${L.measure||'Measure'}</span><div class="seg" role="group" aria-label="${L.measure||'Measure'}">${mRow}</div></div>`;
+  const pick=()=>{const c=find(state.facet.g,state.facet.m);setContrast(c?c.id:'__none__')};
+  $('facets').querySelectorAll('[data-fg]').forEach(b=>b.onclick=()=>{state.facet.g=b.dataset.fg;pick()});
+  $('facets').querySelectorAll('[data-fm]').forEach(b=>b.onclick=()=>{state.facet.m=b.dataset.fm;pick()});
+}
+async function setContrast(cid){
+  const a=A();if(a.placeholder)return;state.contrast=cid;
+  document.querySelectorAll('#group-buttons button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.g===cid));
+  if(a.facets)renderFacets();
+  updateLabels();renderList();renderDetail();
+  if(!V.ready)return;
+  hideNote();
+  // this tab's streamlines (tabs analysed on another template have their own)
+  if(tracksFor(a)===undefined){if(state.mode==='fixel'&&a.hasWB)showViewerMsg('Loading streamlines…');
+    await loadTracks(tracksPath(a));if(a!==A()||state.contrast!==cid)return;
+    if(tracksFor(a)===null&&state.mode==='fixel'){
+      if(a.hasTracts){setMode('bundles');return}   // failed: fall back to the tract view if there is one
+      showViewerMsg(`Streamlines ${tracksPath(a)} could not be loaded. Check the file name in config.json.`,true);return}}
+  V.useTracks(tracksFor(a)||null);
+  if(state.mode==='bundles'){vmsg.hidden=true;V.renderBundles();return}
+  const con=a.contrasts.find(x=>x.id===cid);
+  if(!con||con.nonsig){V.clearSig();vmsg.hidden=true;$('sig-frac').textContent='';showNote(a.whole_brain.nonsig_message);return}
+  if(MODE==='real'&&!a.EFF[cid]){showViewerMsg(`Loading ${contrastName(a,a.contrasts.find(x=>x.id===cid))}…`);
+    try{await loadContrastMaps(a,cid)}catch(e){showViewerMsg(e.message,true);return}}
+  if(state.contrast!==cid||state.mode!=='fixel'||a!==A())return;vmsg.hidden=true;V.renderSig();
+}
+function setMode(m){
+  if(A().placeholder)return;
+  if(!modeAvailable(m))m=m==='bundles'?'fixel':'bundles';
+  state.mode=m;const b=m==='bundles';
+  document.querySelectorAll('.modes button').forEach(x=>{x.setAttribute('aria-pressed',x.dataset.mode===m);x.disabled=!modeAvailable(x.dataset.mode);
+    x.title=x.disabled?'Not available for this analysis':''});
+  const fixedThr=!b&&A().pFormat==='mask';    // thresholded map: no slider, show the threshold used
+  document.querySelectorAll('.fixel-only').forEach(x=>x.hidden=b||fixedThr);
+  $('thr-fixed').hidden=!fixedThr;if(fixedThr)$('thr-fixed').innerHTML=`Significant at ${A().whole_brain.threshold_label||'the threshold used to make the map'}`;
+  if(fixedThr){state.pthr=0.05;$('thr').value=1.301}$('bundle-note').hidden=!b;$('vis-tools').hidden=!b||!A().hasTracts;
+  $('modebar').hidden=!(modeAvailable('fixel')&&modeAvailable('bundles'));   // only offer the switch when both views exist
+  updateColourBar();
+  if(V.ready){V.setMode(m);$('sig-frac').textContent=''}
+  setContrast(state.contrast);
+}
+function setAnalysis(i,fromHash){
+  state.ai=i;const a=A();
+  document.querySelectorAll('#tabs .tab').forEach((t,k)=>{t.setAttribute('aria-selected',k===i);t.tabIndex=k===i?0:-1});
+  $('tab-desc').textContent=a.description;$('tab-desc').hidden=!a.description;
+  if(!fromHash&&ANALYSES.length>1){try{history.replaceState(null,'','#'+a.id)}catch(e){}}
+  // a tab listed in "tabs" but not filled in yet
+  $('placeholder').hidden=!a.placeholder;$('main').hidden=!!a.placeholder;
+  if(a.placeholder){$('groups').hidden=$('facets').hidden=true;
+    $('placeholder').innerHTML=`<strong></strong> isn't set up yet. Add an entry with <code>"id": "${a.id}"</code> and its <code>"contrasts"</code> to <code>"analyses"</code> in data/config.json (see GUIDE.md section 4.2).`;
+    $('placeholder').querySelector('strong').textContent=a.label;return}
+  // comparison buttons
+  $('group-buttons').innerHTML=a.contrasts.map(c=>`<button data-g="${c.id}" aria-pressed="false">${c.label}${c.n?` <small>n=${c.n}</small>`:''}</button>`).join('');
+  document.querySelectorAll('#group-buttons button').forEach(b=>b.onclick=()=>setContrast(b.dataset.g));
+  const r=a.reference;$('vs').textContent=r?`vs ${r.label.toLowerCase()}${r.n?` (n=${r.n})`:''}`:'';
+  if(!a.contrasts.some(c=>c.id===state.contrast))state.contrast=a.contrasts[0]&&a.contrasts[0].id;
+  $('groups').hidden=a.facets;$('facets').hidden=!a.facets;
+  if(a.facets){const c=a.contrasts.find(x=>x.id===state.contrast);state.facet={g:c.group,m:c.measure};renderFacets()}
+  // tract panel
+  const t=a.tracts,ref=a.tractRef;
+  $('panel-empty').hidden=a.hasTracts||ref;
+  $('panel-empty').textContent=`${a.label} has whole-brain results only. There are no tract-level results for this analysis.`;
+  for(const id of['detail','list','legend','ts-tools'])$(id).hidden=!a.hasTracts;
+  $('ref-tools').hidden=!ref;$('ref-list').hidden=!ref;
+  $('ts-title').textContent=ref?a.refTitle:a.hasTracts?t.title.replace('{n}',a.BUNDLES.length):'Tract-level results';
+  $('ts-desc').textContent=ref?(t.description||'Tick TractSeg tracts to outline them in the 3D view and see where the results lie. The outlines are anatomical reference only, not results.')
+    :a.hasTracts?(t.description||`${t.stat_label} (95% CI) for each tract. Select a tract to show it in the 3D view.`):'';
+  if(ref){if(!a.refInit){a.refInit=true;(t.show_by_default||[]).forEach(c=>state.refShown.add(c))}renderRefList()}
+  // "Show" filter: all tracts, or only those below each significance level
+  const lv=(t.sig_levels&&t.sig_levels.length?t.sig_levels:[t.alpha]).map(Number);
+  $('sigfilter').innerHTML='<option value="">All tracts</option>'+lv.map(l=>`<option value="${l}">${t.q_label} &lt; ${String(l).replace(/^0/,'')}</option>`).join('');
+  if(!lv.includes(state.sigLevel))state.sigLevel=null;$('sigfilter').value=state.sigLevel?String(state.sigLevel):'';
+  $('sigfilter').hidden=$('sigfilter-label').hidden=!!t.descriptive;if(t.descriptive)state.sigLevel=null;
+  // value slider (-1 to 1) that hides weaker results
+  $('vf-tools').hidden=!(a.hasTracts&&t.value_filter);$('vf-title').textContent=`${statShort()} filter`;renderDirButtons();updateVfText();
+  const bars=t.interval_label||(a.sdBars?'± SD':'95% CI');
+  $('legend-sig').textContent=t.descriptive?`${t.stat_label}, bars ${bars}; descriptive, no statistical test`:`${t.q_label} < ${t.alpha}, coloured by effect`;
+  $('legend').querySelector(':scope > span:nth-child(2)').hidden=!!t.descriptive;
+  $('legend-dot').style.background=css(t.signed?inferno(0.6):inferno(0.65));
+  a.BUNDLES.forEach(c=>{if(!state.seen||!state.seen.has(c)){state.shown.add(c)}});state.seen=new Set([...(state.seen||[]),...a.BUNDLES]);
+  const S=a.STATS[state.contrast]||{};
+  if(!state.sel||!S[state.sel])state.sel=a.BUNDLES.filter(c=>S[c]).sort((x,y)=>(Math.abs(S[y].d)||0)-(Math.abs(S[x].d)||0))[0]||null;
+  const keep=modeAvailable(state.mode)?state.mode:a.default_view;
+  setMode(fromHash==='init'?(modeAvailable(a.default_view)?a.default_view:keep):keep);
+  if(V.ready){select(state.sel);showGlassFor(a)}
+}
+// Glass brain for the current tab: the tab's own "glass_brain" if set, otherwise the shared one.
+// Each mesh is loaded once, then switched on and off as tabs change.
+const glassCache={};let glassTok=0;
+async function showGlassFor(a){
+  if(!V.ready||MODE!=='real')return;
+  const path=a.glass_brain||CFG.whole_brain.glass_brain,tok=++glassTok;
+  if(!path){V.showGlassMesh(null);return}
+  if(!glassCache[path])glassCache[path]=fetchText(path).then(t=>{const o=parseObj(t);return V.addGlassMesh(o.ras,o.index)})
+    .catch(e=>{ISSUES.push(`Glass brain: ${e.message}`);showBanner('');return null});
+  const m=await glassCache[path];if(tok===glassTok)V.showGlassMesh(m);
+}
+function buildTabs(){
+  const tabs=$('tabs');tabs.hidden=ANALYSES.length<2;
+  tabs.innerHTML=ANALYSES.map((a,i)=>`<button class="tab${a.placeholder?' draft':''}" role="tab" id="tab-${a.id}" aria-selected="false" data-i="${i}">${a.label}</button>`).join('');
+  tabs.querySelectorAll('.tab').forEach(t=>t.onclick=()=>setAnalysis(+t.dataset.i));
+  tabs.addEventListener('keydown',e=>{if(e.key!=='ArrowRight'&&e.key!=='ArrowLeft')return;
+    const n=ANALYSES.length,i=(state.ai+(e.key==='ArrowRight'?1:n-1))%n;setAnalysis(i);tabs.querySelectorAll('.tab')[i].focus()});
+}
+const hashIndex=()=>{const h=decodeURIComponent(location.hash.slice(1));return ANALYSES.findIndex(a=>a.id===h)};
+
+// ======================================================================
+// 10. Page setup, terms gate and start-up
+// ======================================================================
+function applyConfigToPage(){
+  $('title').textContent=CFG.title;document.title=CFG.title;$('subtitle').textContent=CFG.subtitle;$('subtitle').hidden=!CFG.subtitle;
+  $('ref-text').textContent=CFG.citation;$('lic').textContent=CFG.licence;$('lic-link').href=CFG.licence_url;
+  if(CFG.doi_url){$('doi-link').href=CFG.doi_url;$('doi-link').hidden=false}
+  $('gate-intro').textContent=CFG.terms_intro;
+  $('gate-terms').innerHTML='';CFG.terms.forEach(t=>{const li=document.createElement('li');li.textContent=t;$('gate-terms').appendChild(li)});
+  $('gate-contact').textContent=CFG.contact?`Questions or requests for data access: ${CFG.contact}`:'';
+  $('opt-glass-op').value=Math.max(0.05,Math.min(1,+CFG.whole_brain.glass_opacity||0.55));
+}
+function wireControls(){
+  const thr=$('thr');let raf=0;
+  thr.addEventListener('input',()=>{state.pthr=Math.pow(10,-parseFloat(thr.value));$('thr-out').innerHTML=`${A().whole_brain.p_label} &lt; ${state.pthr.toFixed(3)}`;
+    if(!raf)raf=requestAnimationFrame(()=>{raf=0;if(V.ready&&state.mode==='fixel')V.renderSig()})});
+  $('sort').onchange=e=>{state.sort=e.target.value;renderList()};
+  $('sigfilter').onchange=e=>{state.sigLevel=e.target.value?+e.target.value:null;filtersChanged()};
+  const vf=src=>{const n=$('vf-neg'),p=$('vf-pos');if($('vf-link').checked){if(src==='neg')p.value=-n.value;else n.value=-p.value}
+    state.vf={neg:+n.value,pos:+p.value};updateVfText();filtersChanged()};
+  $('vf-neg').oninput=()=>vf('neg');$('vf-pos').oninput=()=>vf('pos');
+  $('vf-link').onchange=()=>{if($('vf-link').checked)vf('pos')};
+  document.querySelectorAll('#dir-buttons button').forEach(b=>b.onclick=()=>{state.dir=b.dataset.dir;renderDirButtons();updateVfText();filtersChanged()});
+  document.querySelectorAll('.modes button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+  $('opt-glass').onchange=e=>V.showGlass&&V.showGlass(e.target.checked);
+  $('opt-glass-op').oninput=e=>V.setGlassOpacity&&V.setGlassOpacity(+e.target.value);
+  $('opt-ctx').onchange=e=>V.showCtx&&V.showCtx(e.target.checked);
+  $('opt-spin').onchange=e=>V.spin&&V.spin(e.target.checked);
+  document.querySelectorAll('.views button').forEach(b=>b.onclick=()=>V.setView&&V.setView(b.dataset.view));
+  $('list').addEventListener('click',e=>{const b=e.target.closest('button.row');if(b)select(state.sel===b.dataset.c?null:b.dataset.c)});
+  $('list').addEventListener('change',e=>{const t=e.target;
+    if(t.classList.contains('vis')){t.checked?state.shown.add(t.dataset.c):state.shown.delete(t.dataset.c);visChanged()}
+    else if(t.classList.contains('fam-vis')){(FAM_CODES[t.dataset.fam]||[]).forEach(c=>t.checked?state.shown.add(c):state.shown.delete(c));visChanged()}});
+  $('ref-list').addEventListener('change',e=>{const t=e.target;
+    if(t.classList.contains('refvis')){t.checked?state.refShown.add(t.dataset.c):state.refShown.delete(t.dataset.c);refChanged()}
+    else if(t.classList.contains('fam-ref')){(REF_FAM[t.dataset.fam]||[]).filter(c=>!refMissing(c)).forEach(c=>t.checked?state.refShown.add(c):state.refShown.delete(c));refChanged()}});
+  $('ref-all').onclick=()=>{A().REF_BUNDLES.filter(c=>!refMissing(c)).forEach(c=>state.refShown.add(c));refChanged()};
+  $('ref-none').onclick=()=>{A().REF_BUNDLES.forEach(c=>state.refShown.delete(c));refChanged()};
+  $('vis-all').onclick=()=>{A().BUNDLES.forEach(c=>state.shown.add(c));visChanged()};
+  $('vis-none').onclick=()=>{A().BUNDLES.forEach(c=>state.shown.delete(c));visChanged()};
+  window.addEventListener('hashchange',()=>{const i=hashIndex();if(i>=0&&i!==state.ai)setAnalysis(i,true)});
+  const ref=$('ref-text'),toast=$('copy-toast');
+  $('copy-ref').onclick=()=>{const fb=()=>{const r=document.createRange();r.selectNodeContents(ref);const s=getSelection();s.removeAllRanges();s.addRange(r);toast.textContent='Selected. Press Ctrl+C or ⌘C to copy.'};
+    try{navigator.clipboard.writeText(ref.innerText).then(()=>toast.textContent='Copied',fb)}catch(e){fb()}};
+}
+const app=$('app'),gate=$('gate'),gOk=$('gate-ok'),gAcc=$('gate-accept');
+const termsKey=()=>'fdc-explorer-terms-'+CFG.terms_version;
+function lockPage(on){if(on){app.setAttribute('inert','');app.setAttribute('aria-hidden','true')}else{app.removeAttribute('inert');app.removeAttribute('aria-hidden')}}
+function openGate(review){gate.hidden=false;lockPage(true);gOk.checked=!!review;gAcc.disabled=!review;gAcc.textContent=review?'Close':'Agree and view results';$('gate-declined').hidden=true;setTimeout(()=>(review?gAcc:gOk).focus(),0)}
+function closeGate(){gate.hidden=true;lockPage(false)}
+function waitForAgreement(){return new Promise(res=>{
+  let ok=false;try{ok=!!localStorage.getItem(termsKey())}catch(e){}
+  gOk.onchange=()=>{gAcc.disabled=!gOk.checked;if(gOk.checked)$('gate-declined').hidden=true};
+  gAcc.onclick=()=>{try{localStorage.setItem(termsKey(),new Date().toISOString())}catch(e){}closeGate();res()};
+  $('gate-decline').onclick=()=>{gOk.checked=false;gAcc.disabled=true;$('gate-declined').hidden=false};
+  $('reopen-terms').onclick=()=>{openGate(true);gAcc.onclick=()=>closeGate()};
+  if(ok){closeGate();res()}else openGate(false);
+})}
+function showBanner(note){
+  const items=ISSUES.map(s=>{const li=document.createElement('li');li.textContent=s;return li.outerHTML}).join('');
+  if(!note&&!items)return;
+  $('banner').innerHTML=(note?`<div>${note}</div>`:'')+(items?`<div>Setup issues in config.json:</div><ul>${items}</ul>`:'');$('banner').hidden=false;
+}
+async function start(){
+  wireControls();
+  let note='';
+  try{await loadConfig();MODE='real'}
+  catch(e){
+    if(e.noConfig||e instanceof TypeError)note=location.protocol==='file:'
+      ?'Demo data. This page was opened as a file, so it cannot read the data folder. Run a local web server to see real data (see README).'
+      :'Demo data. No data/config.json was found, so simulated results are shown.';
+    else note='Demo data. Real data failed to load: '+e.message;
+    ISSUES.length=0;buildDemo();MODE='demo';
+  }
+  showBanner(note);applyConfigToPage();buildTabs();
+  const hi=hashIndex();setAnalysis(hi>=0?hi:0,'init');
+  await waitForAgreement();
+  try{
+    showViewerMsg('Loading streamlines…');
+    const firstTab=A().placeholder?ANALYSES.find(x=>!x.placeholder):A();   // placeholders have no files
+    const first=firstTab?await loadTracks(tracksPath(firstTab)):null;
+    initViewer(first);
+    if(MODE==='real'&&!A().placeholder)await showGlassFor(A());
+    else V.addDemoGlass();
+    vmsg.hidden=true;
+    setMode(state.mode);
+    select(state.sel);
+  }catch(e){console.error(e);showViewerMsg(/WebGL/i.test(e.message)?'The 3D view needs WebGL, which this browser has turned off. The tract results still work.':e.message,true)}
+}
+start();
+})();
+</script>
+</body>
+</html>
