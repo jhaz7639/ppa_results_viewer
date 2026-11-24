@@ -17,6 +17,7 @@
     "Logopenic PPA": "lvPPA",
     "Logopoenic PPA": "lvPPA"
   },
+  "display_note": "Streamlines are a random subset of the template tractogram, downsampled for web viewing, and TractSeg tracts are shown with a reduced number of streamlines. They show where results lie and are <em>for visualisation only</em>; they are not the full set of streamlines used in the analyses.",
   "citation": "Hazelton, Huang, Matis, Quang, Monroe, Piguet, Ballard, & Landin-Romero, 2026. Longitudinal fixel-based analysis reveals degeneration of speech motor white matter networks in nonfluent primary progressive aphasia. <em>Under review</em>",
   "doi_url": "https://doi.org/[DOI]",
   "contact": "[corresponding author, email]",
