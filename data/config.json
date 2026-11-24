@@ -1,6 +1,7 @@
 {
   "title": "FDC Results Explorer",
-  "subtitle": "White matter fibre density and cross-section (FDC) in primary progressive aphasia.",
+  "subtitle": ["White matter fibre density and cross-section (FDC) in nonfluent variant primary progressive aphasia and logopenic-variant primary progressive aphasia.",
+"This viewer is an interactive visualisation of the results from Hazelton, Huang et al., 2026. It allows you to explore the results in 3D, and to view tract-level summary statistics."],
   "tabs": [
     "baseline-atrophy",
     "longitudinal-atrophy",
@@ -41,7 +42,10 @@
     {
       "id": "baseline-atrophy",
       "label": "Baseline atrophy",
-      "description": "Whole-brain differences in FDC between groups at the first scan. Tick TractSeg tracts on the right to outline them for anatomical reference.",
+      "description": ["Whole-brain differences in FDC between groups at the first scan (p<sub>FWE</sub> &lt; .05).",
+        "<strong>Tip:</strong> tick TractSeg tracts on the right to outline them for anatomical reference (shows whole tract length).",
+        "Remove background streamlines for a clearer view of the results."
+      ],
       "reference": null,
       "contrasts": [
         {
@@ -89,7 +93,10 @@
     {
       "id": "longitudinal-atrophy",
       "label": "Longitudinal atrophy",
-      "description": "Change in FDC over time within each group. Whole brain: fixel-wise FDC decline (FWE-corrected). Tracts: descriptive annual percentage change (SPC) in mean FDC, no statistical test.",
+      "description": ["Change in FDC over time within each group. Whole brain: fixel-wise FDC decline (p<sub>FWE</sub> &lt; .05).",
+        "Tracts: descriptive annual percentage change (SPC) in mean FDC, no statistical test.",
+        "Remove background streamlines for a clearer view of the results."
+      ],
       "glass_brain": "glass_brain_longitudinal.obj",
       "tracks": "tracks_longitudinal.tck",
       "bundle_dir": "bundles_longitudinal",
@@ -135,7 +142,7 @@
           "sd": "std"
         },
         "descriptive": true,
-        "title": "Annual change in mean FDC in {n} TractSeg tracts",
+        "title": "Annual change in mean FDC in 72 TractSeg tracts",
         "description": "Mean symmetrised percent change (SPC) per year in tract mean FDC, ± SD across participants. Descriptive; no statistical test.",
         "stat_label": "Mean SPC (%/yr)",
         "stat_short": "%/yr",
@@ -149,7 +156,9 @@
     {
       "id": "baseline-association",
       "label": "Baseline association",
-      "description": "Fixel-wise association between FDC and four speech measures at the first scan, within each group. Pick a group and a measure. Tick TractSeg tracts on the right to outline them for anatomical reference.",
+      "description": ["Fixel-wise association between FDC and four speech measures at the first scan, within each group, (p<sub>FWE</sub> &lt; .05)",
+      "Pick a group and a measure. Tick TractSeg tracts on the right to outline them for anatomical reference.",
+      "Remove background streamlines for a clearer view of the results."],
       "reference": null,
       "selector_labels": {
         "group": "Group",
@@ -236,7 +245,8 @@
     {
       "id": "longitudinal-association",
       "label": "Longitudinal association",
-      "description": "Correlation between yearly change in tract mean FDC and yearly change in each speech measure, within each group. Tract-level analysis of 39 TractSeg ROIs.",
+      "description": ["Correlation between yearly change in tract mean FDC and yearly change in each speech measure, within each group.",
+       "Tract-level analysis of 39 TractSeg ROIs."],
       "glass_brain": "glass_brain_longitudinal.obj",
       "tracks": "tracks_longitudinal.tck",
       "bundle_dir": "bundles_longitudinal",
