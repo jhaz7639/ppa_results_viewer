@@ -2,7 +2,8 @@
   "title": "FDC Results Explorer",
   "subtitle": [
       "Fibre density and cross-section (FDC) in <strong>nonfluent-variant</strong> (nfvPPA) and <strong>logopenic-variant</strong> (lvPPA) primary progressive aphasia.",
-  "Interactive results from Hazelton, Huang <em>et al.</em> (2026). Explore whole-brain results in 3D and tract-level summary statistics."],
+      "Interactive results from Hazelton, Huang <em>et al.</em> (2026).", 
+      "Explore whole-brain results in 3D and tract-level summary statistics."],
   "tabs": [
     "baseline-atrophy",
     "longitudinal-atrophy",
