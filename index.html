@@ -51,7 +51,8 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);
 header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
 .eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 h1{font-family:var(--font-display);font-size:clamp(24px,3.4vw,34px);font-weight:600;letter-spacing:-.01em;margin:2px 0 4px;text-wrap:balance}
-.sub{color:var(--muted);max-width:62ch}
+.head-text{flex:1 1 48ch;min-width:0}
+.sub{color:var(--muted);max-width:110ch;line-height:1.5}
 .banner{font-family:var(--font-mono);font-size:12px;background:var(--warn-bg);color:var(--warn-fg);padding:6px 10px;border-radius:6px;max-width:52ch}
 .groups{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .facets{display:flex;flex-direction:column;gap:8px}
@@ -233,9 +234,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 <body>
 
 <div class="wrap" id="app">
-  <header>
-    <div>
-      <div class="eyebrow">Fixel-based analysis · interactive companion</div>
+<header>
+  <div class="head-text">
+      <div class="eyebrow">Fixel-based analysis · Interactive tool</div>
       <h1 id="title">FDC Results Explorer</h1>
       <div class="sub rich" id="subtitle"></div>
     </div>
